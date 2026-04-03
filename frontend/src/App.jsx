@@ -394,9 +394,11 @@ function SideBar({ onLogout, authUser, role }) {
       </nav>
 
       <div className="st-side-foot">
-        <button type="button" onClick={() => window.alert("System logs viewer can be plugged in here")}>
-          <span className="material-symbols-outlined">history_edu</span>System Logs
-        </button>
+        {role !== "patient" ? (
+          <Link to="/system-logs" className={location.pathname.startsWith("/system-logs") ? "active" : ""}>
+            <span className="material-symbols-outlined">history_edu</span>System Logs
+          </Link>
+        ) : null}
         <button type="button" className="logout" onClick={onLogout}>
           <span className="material-symbols-outlined">logout</span>Logout
         </button>
@@ -930,6 +932,12 @@ function DoctorPortal({ onLogout, authUser }) {
   const isAnalyticsPage = location.pathname.startsWith("/doctor/analytics");
   const isDiagnosticsPage = location.pathname.startsWith("/doctor/diagnostics");
   const isDashboardPage = location.pathname.startsWith("/doctor/dashboard");
+  const dashboardStats = [
+    { label: "Risk Flags", value: riskFlags.length },
+    { label: "Outlier Alerts", value: outliers.length },
+    { label: "Timeline Points", value: trendData.length },
+    { label: "Report Version", value: report?.report_version || 0 },
+  ];
 
   return (
     <Shell role="doctor" onLogout={onLogout} authUser={authUser}>
@@ -952,11 +960,21 @@ function DoctorPortal({ onLogout, authUser }) {
 
       <PatientSelect patients={patients} selected={selected} setSelected={setSelected} />
 
-      {isDashboardPage || isDiagnosticsPage ? <FinalReportView report={report} patientName={selectedPatient?.name} /> : null}
+      {isDiagnosticsPage ? <FinalReportView report={report} patientName={selectedPatient?.name} /> : null}
 
       {isAnalyticsPage ? <AnalyticsCharts patientId={selected} report={report} title="Doctor Analytics" /> : null}
 
-      {isDashboardPage || isDiagnosticsPage ? <div className="st-grid-12">
+      {isDashboardPage ? <div className="st-grid-12">
+        {dashboardStats.map((metric) => (
+          <section key={metric.label} className="st-card col-3">
+            <p className="tag">Overview</p>
+            <h3>{metric.value}</h3>
+            <p>{metric.label}</p>
+          </section>
+        ))}
+      </div> : null}
+
+      {isDiagnosticsPage ? <div className="st-grid-12">
         <section className="st-card col-4">
           <h3>Reasoning Pathway</h3>
           <div className="stepper">
@@ -988,7 +1006,7 @@ function DoctorPortal({ onLogout, authUser }) {
         </section>
       </div> : null}
 
-      {isDashboardPage || isDiagnosticsPage ? <div className="st-grid-12">
+      {isDashboardPage ? <div className="st-grid-12">
         <div className="col-8">
           <TrendCard data={trendData} />
         </div>
@@ -1007,6 +1025,13 @@ function DoctorPortal({ onLogout, authUser }) {
           )}
         </section>
       </div> : null}
+
+      {isDiagnosticsPage ? (
+        <section className="st-card">
+          <h3>Clinical Narrative</h3>
+          <p className="summary-text">{reasoning || "No diagnostic reasoning available."}</p>
+        </section>
+      ) : null}
     </Shell>
   );
 }
@@ -1456,7 +1481,7 @@ function PatientPortal({ onLogout, authUser }) {
 
       {isAnalyticsPage ? <AnalyticsCharts patientId={selected} report={report} title="Patient Analytics" /> : null}
 
-      {isLabsPage || isDiagnosticsPage ? <div className="st-grid-12">
+      {isLabsPage ? <div className="st-grid-12">
         <section className="st-card col-5">
           <h3>Lab History</h3>
           <table className="st-table">
@@ -1516,6 +1541,13 @@ function PatientPortal({ onLogout, authUser }) {
           <p className="summary-text">{report?.reasoning || "No doctor summary available for selected patient."}</p>
         </section>
       </div> : null}
+
+      {isDiagnosticsPage ? (
+        <section className="st-card">
+          <h3>Doctor Summary</h3>
+          <p className="summary-text">{report?.reasoning || "No doctor summary available for selected patient."}</p>
+        </section>
+      ) : null}
     </Shell>
   );
 }
@@ -1613,6 +1645,82 @@ function NfcPatientAccessPage() {
         ) : null}
       </div>
     </div>
+  );
+}
+
+function SystemLogsPage({ authUser, onLogout }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function run() {
+      setLoading(true);
+      setError("");
+
+      const res = await supabase
+        .from("security_audit_logs")
+        .select("occurred_at,actor_identifier,actor_role,action,status,detail,actor_ip")
+        .order("occurred_at", { ascending: false })
+        .limit(120);
+
+      if (res.error) {
+        setError(res.error.message || "Could not load logs.");
+        setLogs([]);
+      } else {
+        setLogs(res.data || []);
+      }
+      setLoading(false);
+    }
+    run();
+  }, []);
+
+  return (
+    <Shell role={authUser?.role || "staff"} onLogout={onLogout} authUser={authUser}>
+      <div className="st-page-header">
+        <div>
+          <p className="eyebrow">Security & Operations</p>
+          <h1>System Logs</h1>
+          <p>Authentication and access activity trail.</p>
+        </div>
+      </div>
+
+      {error ? <p className="muted status-line">{error}</p> : null}
+      {loading ? <p className="muted">Loading logs...</p> : null}
+
+      <section className="st-card">
+        <table className="st-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Actor</th>
+              <th>Role</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.length ? (
+              logs.map((row, idx) => (
+                <tr key={`${row.occurred_at || "time"}-${idx}`}>
+                  <td>{row.occurred_at ? new Date(row.occurred_at).toLocaleString() : "-"}</td>
+                  <td>{row.actor_identifier || "-"}</td>
+                  <td>{row.actor_role || "-"}</td>
+                  <td>{row.action || "-"}</td>
+                  <td>{row.status || "-"}</td>
+                  <td>{row.detail || "-"}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6}>No log entries found.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+    </Shell>
   );
 }
 
@@ -1742,6 +1850,16 @@ export default function App() {
       <Route
         path="/settings"
         element={<ProtectedRoute authUser={authUser} element={<SettingsPage authUser={authUser} onLogout={onLogout} onPinChanged={onPinChanged} />} />}
+      />
+      <Route
+        path="/system-logs"
+        element={
+          <ProtectedRoute
+            authUser={authUser}
+            allowedRoles={["doctor", "staff"]}
+            element={<SystemLogsPage authUser={authUser} onLogout={onLogout} />}
+          />
+        }
       />
       <Route
         path="/doctor"

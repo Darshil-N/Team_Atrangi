@@ -361,6 +361,7 @@ h4,
 }
 
 .col-4 { grid-column: span 4; }
+.col-3 { grid-column: span 3; }
 .col-5 { grid-column: span 5; }
 .col-7 { grid-column: span 7; }
 .col-8 { grid-column: span 8; }
@@ -950,6 +951,7 @@ h4,
   }
 
   .col-4,
+  .col-3,
   .col-5,
   .col-7,
   .col-8 {
