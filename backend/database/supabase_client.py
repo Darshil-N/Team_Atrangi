@@ -95,18 +95,31 @@ def insert_raw_data(
     file_url: str,
     raw_content: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Store metadata for one uploaded file."""
+    """Store metadata for one uploaded file with schema fallback support."""
     client = get_client()
-    response = (
-        client.table("raw_data")
-        .insert({
-            "patient_id": patient_id,
-            "data_type": data_type,
-            "file_url": file_url,
-            "raw_content": raw_content or "",
-        })
-        .execute()
-    )
+
+    payload = {
+        "patient_id": patient_id,
+        "data_type": data_type,
+        "file_url": file_url,
+        "raw_content": raw_content or "",
+    }
+
+    try:
+        response = client.table("raw_data").insert(payload).execute()
+        return response.data[0]
+    except Exception as exc:
+        # Some schemas use file_path instead of file_url.
+        if "PGRST204" not in str(exc):
+            raise
+
+    fallback_payload = {
+        "patient_id": patient_id,
+        "data_type": data_type,
+        "file_path": file_url,
+        "raw_content": raw_content or "",
+    }
+    response = client.table("raw_data").insert(fallback_payload).execute()
     return response.data[0]
 
 

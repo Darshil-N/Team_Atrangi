@@ -65,14 +65,27 @@ backend/.cache/
 
 # ── Test & debug artefacts ───────────────────────────────
 backend/check_install.py
+backend/check_ollama.py
 backend/seed_test.py
 backend/verify_imports.py
+backend/test_ingestion.py
+backend/test_pipeline.py
+backend/test_*.py
+tests_output/
 *.log
 logs/
 
 # ── Sensitive context / planning docs ────────────────────
 # Contains internal system architecture details
 Complete_context.txt
+chat.txt
+
+# ── Local runtime / temp outputs ─────────────────────────
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
 
 # ── Coverage & testing ───────────────────────────────────
 htmlcov/
@@ -108,6 +121,9 @@ dist/
 .parcel-cache/
 *.tsbuildinfo
 .eslintcache
+frontend/.cache/
+frontend/*.log
+frontend/package-lock.json
 
 # ── OS generated ─────────────────────────────────────────
 .DS_Store
