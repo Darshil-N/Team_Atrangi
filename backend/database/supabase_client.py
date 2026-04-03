@@ -203,32 +203,65 @@ def save_report(
     log = logging.getLogger(__name__)
     client = get_client()
 
-    # Step 1: retire previous current report
-    client.table("reports").update({"is_current": False}).eq(
-        "patient_id", patient_id
-    ).eq("is_current", True).execute()
+    def _merge_timeline(existing: List[Dict], incoming: List[Dict]) -> List[Dict]:
+        merged: List[Dict] = []
+        seen = set()
+        for row in (existing or []) + (incoming or []):
+            marker = (
+                row.get("date"),
+                row.get("timestamp"),
+                row.get("event"),
+                row.get("status"),
+            )
+            if marker in seen:
+                continue
+            seen.add(marker)
+            merged.append(row)
+        return merged
 
-    # Step 2: determine version
-    version_resp = (
-        client.table("reports")
-        .select("report_version")
-        .eq("patient_id", patient_id)
-        .order("report_version", desc=True)
-        .limit(1)
-        .execute()
+    current_report = get_current_report(patient_id)
+    next_version = int(current_report["report_version"]) if current_report else 1
+
+    merged_timeline = _merge_timeline(
+        current_report.get("disease_timeline", []) if current_report else [],
+        timeline,
     )
-    next_version = (version_resp.data[0]["report_version"] + 1) if version_resp.data else 1
+    merged_risk_flags = risk_flags if risk_flags else (current_report.get("risk_flags", []) if current_report else [])
+    merged_outliers = outlier_alerts if outlier_alerts else (current_report.get("outlier_alerts", []) if current_report else [])
+    merged_reasoning = reasoning or (current_report.get("reasoning", "") if current_report else "")
+    merged_diagnosis_updated = diagnosis_updated if diagnosis_updated is not None else bool(
+        current_report.get("diagnosis_updated", False) if current_report else False
+    )
 
     full_payload = {
         "patient_id":        patient_id,
         "report_version":    next_version,
-        "disease_timeline":  timeline,
-        "risk_flags":        risk_flags,
-        "outlier_alerts":    outlier_alerts,
-        "diagnosis_updated": diagnosis_updated,
-        "reasoning":         reasoning,
+        "disease_timeline":  merged_timeline,
+        "risk_flags":        merged_risk_flags,
+        "outlier_alerts":    merged_outliers,
+        "diagnosis_updated": merged_diagnosis_updated,
+        "reasoning":         merged_reasoning,
         "is_current":        True,
     }
+
+    # If a current report already exists, update it in-place.
+    if current_report:
+        update_payload = {
+            "disease_timeline":  full_payload["disease_timeline"],
+            "risk_flags":        full_payload["risk_flags"],
+            "outlier_alerts":    full_payload["outlier_alerts"],
+            "diagnosis_updated": full_payload["diagnosis_updated"],
+            "reasoning":         full_payload["reasoning"],
+            "generated_at":      datetime.now(timezone.utc).isoformat(),
+            "is_current":        True,
+        }
+        response = (
+            client.table("reports")
+            .update(update_payload)
+            .eq("id", current_report["id"])
+            .execute()
+        )
+        return response.data[0]
 
     # Step 3a: try full insert
     try:
@@ -243,15 +276,15 @@ def save_report(
         )
 
     # Step 3b: minimal fallback — pack extras into outlier_alerts JSONB
-    enriched = outlier_alerts + [{"_meta": {
-        "diagnosis_updated": diagnosis_updated,
-        "reasoning":         reasoning,
+    enriched = merged_outliers + [{"_meta": {
+        "diagnosis_updated": merged_diagnosis_updated,
+        "reasoning":         merged_reasoning,
     }}]
     minimal = {
         "patient_id":       patient_id,
         "report_version":   next_version,
-        "disease_timeline": timeline,
-        "risk_flags":       risk_flags,
+        "disease_timeline": merged_timeline,
+        "risk_flags":       merged_risk_flags,
         "outlier_alerts":   enriched,
         "is_current":       True,
     }

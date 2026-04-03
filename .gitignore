@@ -160,4 +160,3 @@ data/uploads/
 # ── Supabase local dev ───────────────────────────────────
 supabase/.branches/
 supabase/.temp/
-frontend

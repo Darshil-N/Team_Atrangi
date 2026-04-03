@@ -1,74 +1,12 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>HC01 Basic Upload</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <main class="page">
-    <h1>HC01 Basic Upload</h1>
-    <p class="muted">Minimal UI to create a patient and upload clinical files.</p>
-
-    <section class="card">
-      <h2>Backend</h2>
-      <label for="baseUrl">API Base URL</label>
-      <input id="baseUrl" type="text" value="http://localhost:8080" />
-      <p class="hint">Example: http://localhost:8080</p>
-    </section>
-
-    <section class="card">
-      <h2>1) Create Patient</h2>
-      <form id="patientForm">
-        <label for="patientName">Patient Name</label>
-        <input id="patientName" type="text" placeholder="Test Patient" required />
-
-        <label for="subjectId">Subject ID (optional)</label>
-        <input id="subjectId" type="text" placeholder="TEST_001" />
-
-        <button type="submit">Create Patient</button>
-      </form>
-      <div id="patientResult" class="result"></div>
-    </section>
-
-    <section class="card">
-      <h2>2) Upload Files</h2>
-      <form id="uploadForm">
-        <label for="patientId">Patient ID</label>
-        <input id="patientId" type="text" placeholder="Paste patient UUID" required />
-
-        <label for="dataType">Data Type</label>
-        <select id="dataType">
-          <option value="auto">auto</option>
-          <option value="note">note</option>
-          <option value="lab">lab</option>
-          <option value="vital">vital</option>
-        </select>
-
-        <label for="fileInput">Files</label>
-        <input id="fileInput" type="file" multiple required />
-
-        <label class="inline-check" for="deferAnalysis">
-          <input id="deferAnalysis" type="checkbox" checked />
-          Upload all files first, then generate one final report
-        </label>
-
-        <button type="submit">Upload Selected Files</button>
-      </form>
-      <div id="uploadResult" class="result"></div>
-    </section>
-
-    <section class="card">
-      <h2>3) Final Report</h2>
-      <div class="button-row">
-        <button id="triggerReportBtn" type="button">Generate Final Report</button>
-        <button id="fetchReportBtn" type="button">Fetch Current Report</button>
-      </div>
-      <div id="reportResult" class="result"></div>
-    </section>
-  </main>
-
-  <script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HC01 Portal Suite</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>
