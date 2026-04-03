@@ -1,76 +1,73 @@
--- Phase 0: System Initialization Database Schema (Supabase PostgreSQL)
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
--- 1. Clinicians Table (Staff Profiles)
--- Links to auth.users in Supabase
-CREATE TABLE clinicians (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    -- For actual Supabase Auth, use: id UUID PRIMARY KEY REFERENCES auth.users(id),
-    full_name VARCHAR(255) NOT NULL,
-    role VARCHAR(100), -- e.g., 'Attending', 'Nurse'
-    department VARCHAR(100),
-    created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE public.audit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  clinician_id uuid,
+  patient_id uuid,
+  action character varying NOT NULL,
+  timestamp timestamp with time zone DEFAULT now(),
+  CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT audit_logs_clinician_id_fkey FOREIGN KEY (clinician_id) REFERENCES public.clinicians(id),
+  CONSTRAINT audit_logs_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(patient_id)
 );
-
--- 2. Patients Table
-CREATE TABLE patients (
-    patient_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    subject_id VARCHAR(50),  -- MIMIC-III compatibility
-    name VARCHAR(255) NOT NULL,
-    date_of_birth DATE,      -- [NEW] Needed for age calculations (e.g. SOFA scoring)
-    gender VARCHAR(20),      -- [NEW] Needed for lab reference baselines
-    status VARCHAR(50) DEFAULT 'admitted', -- [NEW] Dashboard filtering 
-    admission_timestamp TIMESTAMPTZ DEFAULT NOW(),
-    nfc_tag_id VARCHAR(255) UNIQUE, -- [MODIFIED] More robust than a brittle URL string
-    created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE public.clinicians (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  full_name character varying NOT NULL,
+  role character varying,
+  department character varying,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT clinicians_pkey PRIMARY KEY (id)
 );
-
--- 3. Raw Data Table
-CREATE TABLE raw_data (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID REFERENCES patients(patient_id) ON DELETE CASCADE,
-    uploader_id UUID REFERENCES clinicians(id) ON DELETE SET NULL, -- [NEW] Tracks who uploaded the file
-    data_type VARCHAR(50),  -- 'note', 'lab', 'vital'
-    raw_content TEXT,
-    file_path TEXT,         -- [MODIFIED] Supabase Storage path is better than full URL
-    status VARCHAR(50) DEFAULT 'pending', -- [NEW] Processing status: pending, processing, completed, error
-    uploaded_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE public.parsed_data (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  patient_id uuid,
+  raw_data_id uuid,
+  timestamp timestamp with time zone,
+  data_type character varying,
+  structured_json jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT parsed_data_pkey PRIMARY KEY (id),
+  CONSTRAINT parsed_data_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(patient_id),
+  CONSTRAINT parsed_data_raw_data_id_fkey FOREIGN KEY (raw_data_id) REFERENCES public.raw_data(id)
 );
-
--- 4. Parsed Data Table
-CREATE TABLE parsed_data (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID REFERENCES patients(patient_id) ON DELETE CASCADE,
-    raw_data_id UUID REFERENCES raw_data(id) ON DELETE CASCADE, -- [NEW] Data Lineage: traces parsed value back to raw file
-    timestamp TIMESTAMPTZ,
-    data_type VARCHAR(50),
-    structured_json JSONB,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE public.patients (
+  patient_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  subject_id character varying,
+  name character varying NOT NULL,
+  date_of_birth date,
+  gender character varying,
+  status character varying DEFAULT 'admitted'::character varying,
+  admission_timestamp timestamp with time zone DEFAULT now(),
+  nfc_tag_id character varying UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  nfc_url text,
+  CONSTRAINT patients_pkey PRIMARY KEY (patient_id)
 );
-
--- 5. Reports Table
-CREATE TABLE reports (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    patient_id UUID REFERENCES patients(patient_id) ON DELETE CASCADE,
-    report_version INT,
-    disease_timeline JSONB,
-    risk_flags JSONB,
-    outlier_alerts JSONB,
-    generated_at TIMESTAMPTZ DEFAULT NOW(),
-    is_current BOOLEAN DEFAULT true
+CREATE TABLE public.raw_data (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  patient_id uuid,
+  uploader_id uuid,
+  data_type character varying,
+  raw_content text,
+  file_path text,
+  status character varying DEFAULT 'pending'::character varying,
+  uploaded_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT raw_data_pkey PRIMARY KEY (id),
+  CONSTRAINT raw_data_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(patient_id),
+  CONSTRAINT raw_data_uploader_id_fkey FOREIGN KEY (uploader_id) REFERENCES public.clinicians(id)
 );
-
--- 6. Audit Logs Table (Healthcare Best Practice)
-CREATE TABLE audit_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    clinician_id UUID REFERENCES clinicians(id) ON DELETE SET NULL,
-    patient_id UUID REFERENCES patients(patient_id) ON DELETE CASCADE,
-    action VARCHAR(255) NOT NULL, -- e.g., 'uploaded_data', 'viewed_report', 'confirmed_redraw'
-    timestamp TIMESTAMPTZ DEFAULT NOW()
+CREATE TABLE public.reports (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  patient_id uuid,
+  report_version integer,
+  disease_timeline jsonb,
+  risk_flags jsonb,
+  outlier_alerts jsonb,
+  generated_at timestamp with time zone DEFAULT now(),
+  is_current boolean DEFAULT true,
+  diagnosis_updated boolean DEFAULT false,
+  reasoning text DEFAULT ''::text,
+  CONSTRAINT reports_pkey PRIMARY KEY (id),
+  CONSTRAINT reports_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES public.patients(patient_id)
 );
-
--- 7. Indexes (For Performance Optimization)
-CREATE INDEX idx_reports_patient ON reports(patient_id);
-CREATE INDEX idx_raw_status ON raw_data(status);
-CREATE INDEX idx_parsed_timestamp ON parsed_data(timestamp);
-
-
