@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Clinical Assistant | Risk &amp; Evidence Deep-Dive</title>
+<!-- Google Fonts: Manrope for headlines/data, Inter for body, IBM Plex Serif for clinical citations -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-error": "#ffffff",
+              "surface-bright": "#f6f9ff",
+              "surface-container-lowest": "#ffffff",
+              "surface": "#f6f9ff",
+              "on-secondary": "#ffffff",
+              "on-surface-variant": "#434655",
+              "surface-container-high": "#e3e9f1",
+              "on-tertiary-container": "#ffecec",
+              "on-primary-fixed-variant": "#003ea8",
+              "surface-container-low": "#eef4fc",
+              "on-secondary-fixed": "#131b2e",
+              "on-background": "#161c22",
+              "primary": "#004ac6",
+              "surface-tint": "#0053db",
+              "error-container": "#ffdad6",
+              "on-secondary-container": "#5c647a",
+              "on-primary": "#ffffff",
+              "secondary-fixed-dim": "#bec6e0",
+              "surface-dim": "#d4dbe2",
+              "on-tertiary-fixed": "#40000c",
+              "error": "#ba1a1a",
+              "surface-variant": "#dde3eb",
+              "on-surface": "#161c22",
+              "on-error-container": "#93000a",
+              "primary-container": "#2563eb",
+              "surface-container": "#e8eef6",
+              "surface-container-highest": "#dde3eb",
+              "background": "#f6f9ff",
+              "outline": "#737686",
+              "inverse-surface": "#2b3137",
+              "tertiary-fixed": "#ffdada",
+              "inverse-on-surface": "#ebf1f9",
+              "secondary-fixed": "#dae2fd",
+              "tertiary-container": "#d71142",
+              "inverse-primary": "#b4c5ff",
+              "secondary-container": "#dae2fd",
+              "outline-variant": "#c3c6d7",
+              "on-tertiary": "#ffffff",
+              "on-secondary-fixed-variant": "#3f465c",
+              "on-tertiary-fixed-variant": "#920028",
+              "tertiary": "#ac0031",
+              "primary-fixed-dim": "#b4c5ff",
+              "secondary": "#565e74",
+              "on-primary-fixed": "#00174b",
+              "on-primary-container": "#eeefff",
+              "primary-fixed": "#dbe1ff",
+              "tertiary-fixed-dim": "#ffb3b6"
+            },
+            borderRadius: {
+              "DEFAULT": "0.25rem",
+              "lg": "0.5rem",
+              "xl": "1.5rem",
+              "full": "9999px"
+            },
+            fontFamily: {
+              "headline": ["Manrope", "sans-serif"],
+              "body": ["Inter", "sans-serif"],
+              "serif": ["IBM Plex Serif", "serif"],
+              "label": ["Inter", "sans-serif"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            vertical-align: middle;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .surgical-line {
+            background: linear-gradient(to bottom, transparent, #c3c6d7 15%, #c3c6d7 85%, transparent);
+            width: 1px;
+        }
+        .glow-score {
+            text-shadow: 0 0 15px rgba(0, 74, 198, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary/10">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full flex justify-between items-center px-6 py-3 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm shadow-slate-200/20 z-50">
+<div class="flex items-center gap-4">
+<span class="text-xl font-bold tracking-tighter text-slate-900 dark:text-slate-50 font-headline">Clinical Assistant</span>
+<div class="h-6 w-px bg-slate-200 ml-2"></div>
+<div class="flex gap-6 ml-4">
+<a class="text-slate-500 hover:text-slate-900 font-headline tracking-tight font-medium text-sm transition-all" href="#">Dashboard</a>
+<a class="text-blue-600 border-b-2 border-blue-600 pb-1 font-headline tracking-tight font-medium text-sm transition-all" href="#">Diagnostics</a>
+<a class="text-slate-500 hover:text-slate-900 font-headline tracking-tight font-medium text-sm transition-all" href="#">Analytics</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full text-sm w-64 focus:ring-2 focus:ring-primary/20 transition-all" placeholder="Search medical records..." type="text"/>
+</div>
+<button class="p-2 hover:bg-slate-50/50 rounded-full transition-all text-slate-600">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 hover:bg-slate-50/50 rounded-full transition-all text-slate-600">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<img alt="Chief Surgeon Profile" class="w-8 h-8 rounded-full border border-slate-200" data-alt="Professional headshot of a senior male surgeon in sterile blue scrubs with a confident, calm expression against a clinical background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD47uBb6YcqiY8wjcQIa5ryO0n76DUiVD-0ppfXNMut_00VrMLsQsyXVxuDukS0aF5jNNGvxdzMuh9_brJ-pl_jUk9SY5rtpvEblwKaEgoVjB3IdDXuDXdpgIlih3dnRO79WV5UnfdXEtv7vG4lMQSe4SebNfQA_xOnEH21xHa9EbkTrIy1dg-IUJ4P2ae099KLrvAcvg5pGXiUZKXezTtm9e29YwCKuBszNsEbJ4k-hqf5kMqVE0X4UM8Ng16uoXQ3zw5GkAC17do"/>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-72 bg-slate-50 dark:bg-slate-950 border-r border-slate-200/50 dark:border-slate-800/50 flex flex-col pt-20 z-40">
+<div class="px-6 mb-8">
+<div class="p-4 bg-white rounded-xl border border-slate-100 shadow-sm">
+<div class="flex items-center gap-3 mb-2">
+<img alt="Patient Overview" class="w-10 h-10 rounded-lg object-cover" data-alt="Profile photo of a middle-aged male patient, Alexander Vance, looking directly at the camera with neutral lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPtn6pxoHR4Jkbba-ShfjRoZVK-LDm5l9yDGb4-VTR59-xIEkHeWYWY9mn3EASdHAf-GUONEFY1IUjyMwBLTTbb3jh6Ui7qbtJOZeiCYswdY1Sv2UcKE8Dc3-zm8LxGRMxzQuOzO_E0B1ADtatxHccqf7KOoTRqxQQypJC8vjnlPexs4R2i6T_G6Kd8kaR6xL9kBj47PcU2b6-RWSH2pf8TeQAHDqj3sZFS1tL7ORm0igM71amirv-O4VzD80POH-tLRcS4p8Dlo4"/>
+<div>
+<p class="font-headline font-black text-slate-900 dark:text-slate-100 text-sm">Alexander Vance</p>
+<p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">ID: 8842-X | Adm: 08:45 AM</p>
+</div>
+</div>
+<button class="w-full py-2 bg-primary text-white rounded-lg text-xs font-bold tracking-tight hover:opacity-90 transition-all">New Consultation</button>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 font-headline text-sm font-medium tracking-tight hover:bg-slate-200/30 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="biotech">biotech</span>
+<span>Diagnostics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-blue-600 bg-blue-50/50 dark:bg-blue-900/20 border-r-4 border-blue-600 font-headline text-sm font-medium tracking-tight" href="#">
+<span class="material-symbols-outlined" data-icon="folder_shared" style="font-variation-settings: 'FILL' 1;">folder_shared</span>
+<span>Patient Records</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 font-headline text-sm font-medium tracking-tight hover:bg-slate-200/30 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="radiology">radiology</span>
+<span>Imaging</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 font-headline text-sm font-medium tracking-tight hover:bg-slate-200/30 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="science">science</span>
+<span>Lab Results</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 dark:text-slate-400 font-headline text-sm font-medium tracking-tight hover:bg-slate-200/30 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="insights">insights</span>
+<span>Analytics</span>
+</a>
+</nav>
+<div class="p-4 border-t border-slate-100 dark:border-slate-900">
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 font-headline text-sm font-medium hover:text-blue-600 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+<span>System Logs</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 font-headline text-sm font-medium hover:text-blue-600 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span>Help Center</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-72 pt-24 px-12 pb-12 min-h-screen">
+<!-- Header Section -->
+<header class="flex justify-between items-end mb-12">
+<div class="max-w-2xl">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full mb-4">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="text-[10px] font-bold tracking-widest text-primary uppercase">Deep Evidence Analysis</span>
+</div>
+<h1 class="text-4xl font-headline font-bold tracking-tight text-on-background mb-4">Cardiological Risk &amp; Clinical Reasoning</h1>
+<p class="text-on-surface-variant font-body leading-relaxed">Comprehensive RAG-based synthesis of patient historical data versus current diagnostic trends. Evidence verified against Lancet 2024 protocols.</p>
+</div>
+<div class="flex gap-4">
+<button class="px-6 py-3 bg-surface-container-highest text-primary font-headline font-bold text-sm rounded-xl hover:bg-surface-container-high transition-all">Export Report</button>
+<button class="px-6 py-3 bg-gradient-to-r from-primary to-primary-container text-white font-headline font-bold text-sm rounded-xl shadow-lg shadow-primary/20 hover:scale-[0.98] transition-all">Finalize Diagnosis</button>
+</div>
+</header>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-8">
+<!-- Left Column: Reasoning Pathway -->
+<div class="col-span-4 space-y-8">
+<div class="bg-surface-container-low p-8 rounded-xl relative overflow-hidden">
+<div class="absolute top-0 right-0 p-4">
+<span class="text-primary/20 font-headline font-black text-6xl opacity-10">01</span>
+</div>
+<h3 class="font-headline font-bold text-lg mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="route">route</span>
+                        Reasoning Pathway
+                    </h3>
+<div class="relative pl-8 space-y-12">
+<!-- Connecting Line -->
+<div class="absolute left-3 top-2 bottom-2 surgical-line"></div>
+<!-- Step 1 -->
+<div class="relative">
+<div class="absolute -left-[29px] top-1 w-2.5 h-2.5 rounded-full border-2 border-primary bg-white z-10"></div>
+<p class="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Observation</p>
+<h4 class="font-headline font-bold text-sm mb-2">Anomalous ECG QRS T-wave</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">Detected intermittent widening of the QRS complex during stress-test simulations, suggesting latent conduction delay.</p>
+</div>
+<!-- Step 2 -->
+<div class="relative">
+<div class="absolute -left-[29px] top-1 w-2.5 h-2.5 rounded-full border-2 border-primary bg-white z-10"></div>
+<p class="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Inference</p>
+<h4 class="font-headline font-bold text-sm mb-2">Myocardial Stress Index</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">Cross-referenced with Troponin-T levels (0.04 ng/mL). AI predicts 84% probability of microvascular dysfunction.</p>
+</div>
+<!-- Step 3 -->
+<div class="relative">
+<div class="absolute -left-[29px] top-1 w-2.5 h-2.5 rounded-full border-2 border-primary bg-white z-10"></div>
+<p class="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Conclusion</p>
+<h4 class="font-headline font-bold text-sm mb-2">Stage II Intervention</h4>
+<p class="text-xs text-on-surface-variant leading-relaxed">Recommended immediate pharmacological stabilization prior to scheduled angiography.</p>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-8 rounded-xl shadow-sm border border-outline-variant/10">
+<h3 class="font-headline font-bold text-lg mb-4">Risk Distribution</h3>
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<span class="text-xs font-medium">Genetic Predisposition</span>
+<span class="text-xs font-bold text-primary">12%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 12%"></div>
+</div>
+<div class="flex justify-between items-center">
+<span class="text-xs font-medium">Lifestyle Factors</span>
+<span class="text-xs font-bold text-tertiary">68%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-tertiary rounded-full" style="width: 68%"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Deep Evidence View -->
+<div class="col-span-8 space-y-8">
+<!-- Side-by-Side RAG Evidence -->
+<div class="grid grid-cols-2 gap-px bg-outline-variant/10 rounded-xl overflow-hidden shadow-sm border border-outline-variant/10">
+<!-- Verbatim Clinical Citations -->
+<div class="bg-surface-container-lowest p-8">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-400" data-icon="menu_book">menu_book</span>
+<h3 class="font-headline font-bold text-sm">Clinical Evidence</h3>
+</div>
+<span class="px-2 py-1 bg-surface-container-low text-[10px] font-bold rounded">REF: LANCET-2024-V4</span>
+</div>
+<div class="space-y-8">
+<div class="p-6 bg-surface-container-low/50 rounded-xl border-l-4 border-slate-300">
+<p class="font-serif italic text-on-surface-variant leading-relaxed mb-4">
+                                    "Persistent QRS widening (&gt;120ms) in patients over 55 presenting with non-specific thoracic discomfort correlates strongly with sub-clinical ischemia, regardless of baseline Troponin values."
+                                </p>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-500 text-sm" data-icon="person">person</span>
+</div>
+<span class="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Dr. Julianne Mercer, Oncology &amp; Cardio-Biology</span>
+</div>
+</div>
+<div class="p-6 bg-surface-container-low/50 rounded-xl border-l-4 border-slate-300">
+<p class="font-serif italic text-on-surface-variant leading-relaxed mb-4">
+                                    "Intervention strategy for microvascular dysfunction requires a combination of Beta-Blockers and lifestyle adjustment to reduce myocardial oxygen demand by a minimum of 14%."
+                                </p>
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-500 text-sm" data-icon="history_edu">history_edu</span>
+</div>
+<span class="text-[11px] font-bold text-slate-500 uppercase tracking-tight">Standard Protocol 8.41, Mayo Clinic</span>
+</div>
+</div>
+</div>
+</div>
+<!-- AI Chief Agent Synthesis -->
+<div class="bg-surface-container-low p-8 border-l border-outline-variant/20">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" data-icon="auto_awesome" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+<h3 class="font-headline font-bold text-sm">Chief Agent Synthesis</h3>
+</div>
+<div class="flex items-center gap-1.5 px-3 py-1 bg-primary/10 rounded-full">
+<span class="text-[10px] font-black text-primary glow-score">98.4% MATCH</span>
+</div>
+</div>
+<div class="space-y-6">
+<div class="p-6 bg-white rounded-xl shadow-sm">
+<h4 class="font-headline font-bold text-xs text-primary mb-3 uppercase tracking-wider">Pattern Correlation</h4>
+<p class="text-sm leading-relaxed text-on-surface font-medium">
+                                    Alexander's specific morphology aligns with the Mercer Study (2024). The intermittent nature of the widening suggests a stress-induced trigger rather than a permanent block.
+                                </p>
+<div class="mt-4 pt-4 border-t border-slate-50 flex gap-4">
+<div class="text-center">
+<p class="text-[10px] text-slate-400 font-bold uppercase">Confidence</p>
+<p class="text-xl font-headline font-bold text-primary">High</p>
+</div>
+<div class="text-center">
+<p class="text-[10px] text-slate-400 font-bold uppercase">Evidence</p>
+<p class="text-xl font-headline font-bold text-primary">14 Citations</p>
+</div>
+</div>
+</div>
+<div class="p-6 bg-white rounded-xl shadow-sm">
+<h4 class="font-headline font-bold text-xs text-primary mb-3 uppercase tracking-wider">Suggested Actions</h4>
+<ul class="space-y-3">
+<li class="flex items-start gap-2 text-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                        Schedule Cardiac MRI to confirm microvascular integrity.
+                                    </li>
+<li class="flex items-start gap-2 text-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                                        Adjust Beta-Blocker dosage (Metoprolol 25mg BID).
+                                    </li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<!-- PDF Preview Interaction -->
+<div class="bg-surface-container-lowest p-6 rounded-xl border border-outline-variant/10 flex items-center gap-6">
+<div class="w-16 h-20 bg-slate-100 rounded flex flex-col items-center justify-center border border-slate-200">
+<span class="material-symbols-outlined text-tertiary" data-icon="picture_as_pdf">picture_as_pdf</span>
+<span class="text-[8px] font-bold text-slate-400 mt-1 uppercase">LANCET_V4</span>
+</div>
+<div class="flex-1">
+<h4 class="font-headline font-bold text-sm">Full Publication: Cardiovascular Trends 2024</h4>
+<p class="text-xs text-on-surface-variant">Authored by Mercer, J. et al. - Peer Reviewed</p>
+</div>
+<button class="flex items-center gap-2 px-4 py-2 border border-outline-variant text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-50 transition-all">
+<span class="material-symbols-outlined text-sm" data-icon="open_in_new">open_in_new</span>
+                        Open PDF Preview
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="w-full py-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-900 flex justify-between items-center px-12 ml-72">
+<p class="font-manrope text-[10px] uppercase tracking-widest font-semibold text-slate-400 dark:text-slate-500">© 2024 Clinical Assistant. Precision Grade AI.</p>
+<div class="flex gap-8">
+<a class="font-manrope text-[10px] uppercase tracking-widest font-semibold text-slate-400 hover:text-blue-600 transition-colors" href="#">HIPAA Compliant</a>
+<a class="font-manrope text-[10px] uppercase tracking-widest font-semibold text-slate-400 hover:text-blue-600 transition-colors" href="#">System Status: 12ms</a>
+<a class="font-manrope text-[10px] uppercase tracking-widest font-semibold text-slate-400 hover:text-blue-600 transition-colors" href="#">Support</a>
+</div>
+</footer>
+<!-- FAB: Contextual Search/Ask -->
+<div class="fixed bottom-8 right-8 z-50">
+<button class="w-14 h-14 bg-primary text-white rounded-full shadow-2xl shadow-primary/40 flex items-center justify-center hover:scale-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined" data-icon="clinical_notes" style="font-variation-settings: 'FILL' 1;">clinical_notes</span>
+</button>
+</div>
+</body></html>
