@@ -1,9 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
+  Legend,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -192,15 +198,15 @@ function getRoleTabs(role) {
   }
   if (role === "patient") {
     return [
-      { label: "Diagnostics", to: "/patient" },
-      { label: "Imaging", to: "/patient" },
-      { label: "Laboratory", to: "/patient" },
+      { label: "Diagnostics", to: "/patient/diagnostics" },
+      { label: "Analytics", to: "/patient/analytics" },
+      { label: "Laboratory", to: "/patient/labs" },
     ];
   }
   return [
-    { label: "Dashboard", to: "/doctor" },
-    { label: "Diagnostics", to: "/doctor" },
-    { label: "Analytics", to: "/doctor" },
+    { label: "Dashboard", to: "/doctor/dashboard" },
+    { label: "Diagnostics", to: "/doctor/diagnostics" },
+    { label: "Analytics", to: "/doctor/analytics" },
   ];
 }
 
@@ -337,8 +343,9 @@ function SideBar({ onLogout, authUser, role }) {
 
   const navItems = {
     doctor: [
-      { label: "Diagnostics", to: "/doctor", icon: "biotech" },
-      { label: "Analytics", to: "/doctor", icon: "insights" },
+      { label: "Dashboard", to: "/doctor/dashboard", icon: "space_dashboard" },
+      { label: "Diagnostics", to: "/doctor/diagnostics", icon: "biotech" },
+      { label: "Analytics", to: "/doctor/analytics", icon: "insights" },
       { label: "Settings", to: "/settings", icon: "settings" },
     ],
     staff: [
@@ -347,13 +354,20 @@ function SideBar({ onLogout, authUser, role }) {
       { label: "Settings", to: "/settings", icon: "settings" },
     ],
     patient: [
-      { label: "Diagnostics", to: "/patient", icon: "biotech" },
-      { label: "Analytics", to: "/patient", icon: "insights" },
+      { label: "Diagnostics", to: "/patient/diagnostics", icon: "biotech" },
+      { label: "Analytics", to: "/patient/analytics", icon: "insights" },
+      { label: "Laboratory", to: "/patient/labs", icon: "science" },
       { label: "Settings", to: "/settings", icon: "settings" },
     ],
   };
 
   const items = navItems[role] || navItems.staff;
+  const primaryAction = {
+    doctor: { to: "/doctor/dashboard", label: "Doctor Dashboard" },
+    staff: { to: "/staff/new-patient", label: "New Patient" },
+    patient: { to: "/patient/diagnostics", label: "My Report" },
+  };
+  const action = primaryAction[role] || primaryAction.staff;
 
   return (
     <aside className="st-side">
@@ -365,9 +379,9 @@ function SideBar({ onLogout, authUser, role }) {
         </div>
       </div>
 
-      <Link to="/staff/new-patient" className="st-primary-btn wide">
+      <Link to={action.to} className="st-primary-btn wide">
         <span className="material-symbols-outlined">add</span>
-        New Patient
+        {action.label}
       </Link>
 
       <nav className="st-side-nav">
@@ -443,6 +457,124 @@ function TrendCard({ data }) {
             <Line type="monotone" dataKey="lactate" stroke="#f59e0b" strokeWidth={2} dot={false} strokeDasharray="5 5" />
             <Line type="monotone" dataKey="spo2" stroke="#2563eb" strokeWidth={3} dot={false} />
           </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function useIntegratedAnalytics(patientId, report) {
+  const [analytics, setAnalytics] = useState({
+    sourceBreakdown: [],
+    severityBreakdown: [],
+    latestLabBars: [],
+  });
+
+  useEffect(() => {
+    async function run() {
+      if (!patientId) {
+        setAnalytics({ sourceBreakdown: [], severityBreakdown: [], latestLabBars: [] });
+        return;
+      }
+
+      const parsedRes = await supabase
+        .from("parsed_data")
+        .select("data_type,timestamp,structured_json")
+        .eq("patient_id", patientId)
+        .order("timestamp", { ascending: false })
+        .limit(200);
+
+      const rows = parsedRes.data || [];
+      const typeCount = {};
+      const latestLabs = {};
+
+      rows.forEach((row) => {
+        const type = row.data_type || "unknown";
+        typeCount[type] = (typeCount[type] || 0) + 1;
+
+        if (type === "lab") {
+          const values = row.structured_json?.values || {};
+          Object.entries(values).forEach(([name, raw]) => {
+            const numeric =
+              raw && typeof raw === "object" && raw !== null
+                ? toNumber(raw.value)
+                : toNumber(raw);
+            if (numeric !== null && !Number.isNaN(numeric)) {
+              if (!(name in latestLabs)) {
+                latestLabs[name] = numeric;
+              }
+            }
+          });
+        }
+      });
+
+      const sourceBreakdown = Object.entries(typeCount).map(([name, value]) => ({ name, value }));
+      const latestLabBars = Object.entries(latestLabs)
+        .slice(0, 8)
+        .map(([name, value]) => ({ name, value: Number(value.toFixed(2)) }));
+
+      const severityCount = {};
+      (Array.isArray(report?.risk_flags) ? report.risk_flags : []).forEach((risk) => {
+        const sev = String(risk?.severity || "unknown").toUpperCase();
+        severityCount[sev] = (severityCount[sev] || 0) + 1;
+      });
+      const severityBreakdown = Object.entries(severityCount).map(([name, value]) => ({ name, value }));
+
+      setAnalytics({ sourceBreakdown, severityBreakdown, latestLabBars });
+    }
+    run();
+  }, [patientId, report]);
+
+  return analytics;
+}
+
+function AnalyticsCharts({ patientId, report, title = "Clinical Analytics" }) {
+  const { sourceBreakdown, severityBreakdown, latestLabBars } = useIntegratedAnalytics(patientId, report);
+  const pieColors = ["#004ac6", "#f59e0b", "#dc2626", "#16a34a", "#7c3aed"];
+
+  return (
+    <section className="st-card">
+      <h3>{title}</h3>
+      <div className="analytics-grid">
+        <div className="chart-shell">
+          <h4 className="summary-head">Latest Lab Values</h4>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={latestLabBars}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#edf1f7" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="value" fill="#2563eb" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="chart-shell">
+          <h4 className="summary-head">Risk Severity Distribution</h4>
+          <ResponsiveContainer width="100%" height={280}>
+            <PieChart>
+              <Pie data={severityBreakdown} dataKey="value" nameKey="name" outerRadius={96} label>
+                {severityBreakdown.map((entry, index) => (
+                  <Cell key={`${entry.name}-${index}`} fill={pieColors[index % pieColors.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="chart-shell">
+        <h4 className="summary-head">Ingested Data Sources</h4>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={sourceBreakdown}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#edf1f7" />
+            <XAxis dataKey="name" />
+            <YAxis />
+            <Tooltip />
+            <Bar dataKey="value" fill="#0f766e" radius={[8, 8, 0, 0]} />
+          </BarChart>
         </ResponsiveContainer>
       </div>
     </section>
@@ -757,6 +889,7 @@ function SettingsPage({ authUser, onLogout, onPinChanged }) {
 }
 
 function DoctorPortal({ onLogout, authUser }) {
+  const location = useLocation();
   const { patients, selected, setSelected } = usePatients();
   const { report, refreshReport, loading, error } = useCurrentReport(selected);
   const [reasoning, setReasoning] = useState("");
@@ -794,6 +927,9 @@ function DoctorPortal({ onLogout, authUser }) {
 
   const riskFlags = Array.isArray(report?.risk_flags) ? report.risk_flags : [];
   const outliers = Array.isArray(report?.outlier_alerts) ? report.outlier_alerts : [];
+  const isAnalyticsPage = location.pathname.startsWith("/doctor/analytics");
+  const isDiagnosticsPage = location.pathname.startsWith("/doctor/diagnostics");
+  const isDashboardPage = location.pathname.startsWith("/doctor/dashboard");
 
   return (
     <Shell role="doctor" onLogout={onLogout} authUser={authUser}>
@@ -816,9 +952,11 @@ function DoctorPortal({ onLogout, authUser }) {
 
       <PatientSelect patients={patients} selected={selected} setSelected={setSelected} />
 
-      <FinalReportView report={report} patientName={selectedPatient?.name} />
+      {isDashboardPage || isDiagnosticsPage ? <FinalReportView report={report} patientName={selectedPatient?.name} /> : null}
 
-      <div className="st-grid-12">
+      {isAnalyticsPage ? <AnalyticsCharts patientId={selected} report={report} title="Doctor Analytics" /> : null}
+
+      {isDashboardPage || isDiagnosticsPage ? <div className="st-grid-12">
         <section className="st-card col-4">
           <h3>Reasoning Pathway</h3>
           <div className="stepper">
@@ -848,9 +986,9 @@ function DoctorPortal({ onLogout, authUser }) {
             </div>
           </div>
         </section>
-      </div>
+      </div> : null}
 
-      <div className="st-grid-12">
+      {isDashboardPage || isDiagnosticsPage ? <div className="st-grid-12">
         <div className="col-8">
           <TrendCard data={trendData} />
         </div>
@@ -868,7 +1006,7 @@ function DoctorPortal({ onLogout, authUser }) {
             <p className="muted">No outlier alerts in current report.</p>
           )}
         </section>
-      </div>
+      </div> : null}
     </Shell>
   );
 }
@@ -943,15 +1081,17 @@ function StaffPortal({ onLogout, authUser }) {
 
     const fullInsert = await supabase.from("patients").insert(full).select("*").limit(1);
     let inserted = fullInsert.data?.[0];
-    if (fullInsert.error) {
+
+    if (fullInsert.error || !inserted) {
       const fallback = await supabase
         .from("patients")
-        .insert({ name: form.name, subject_id: form.mrn, nfc_url: generatedNfc })
+        .insert({ name: form.name, subject_id: form.mrn })
         .select("*")
         .limit(1);
       inserted = fallback.data?.[0];
-      if (fallback.error) {
-        setStatus(`Add patient failed: ${fallback.error.message}`);
+      if (fallback.error || !inserted) {
+        const message = fallback.error?.message || fullInsert.error?.message || "Unknown insert error";
+        setStatus(`Add patient failed: ${message}`);
         return;
       }
     }
@@ -960,27 +1100,33 @@ function StaffPortal({ onLogout, authUser }) {
     await supabase.from("patients").update({ nfc_url: generatedNfc }).eq("patient_id", inserted.patient_id);
 
     try {
-      const patientIdentifier = String(form.mrn || inserted.patient_id || "").trim().toLowerCase();
-      const pinDigest = await hashPin("patient", patientIdentifier, form.patientPin);
-      const pinRes = await supabase.from("pin_access").upsert(
-        {
-          identifier: patientIdentifier,
-          role: "patient",
-          display_name: inserted.name,
-          pin_hash: pinDigest,
-          is_active: true,
-          must_rotate: false,
-          failed_attempts: 0,
-          locked_until: null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "identifier,role" },
-      );
-      if (pinRes.error) {
-        setStatus(`Patient created, but PIN setup failed: ${pinRes.error.message}`);
-      } else {
-        setStatus(`Patient added: ${inserted.name}. NFC link: ${generatedNfc}`);
+      const identifiers = [
+        String(form.mrn || "").trim().toLowerCase(),
+        String(inserted.patient_id || "").trim().toLowerCase(),
+      ].filter(Boolean);
+
+      for (const patientIdentifier of identifiers) {
+        const pinDigest = await hashPin("patient", patientIdentifier, form.patientPin);
+        const pinRes = await supabase.from("pin_access").upsert(
+          {
+            identifier: patientIdentifier,
+            role: "patient",
+            display_name: inserted.name,
+            pin_hash: pinDigest,
+            is_active: true,
+            must_rotate: false,
+            failed_attempts: 0,
+            locked_until: null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "identifier,role" },
+        );
+        if (pinRes.error) {
+          throw new Error(pinRes.error.message);
+        }
       }
+
+      setStatus(`Patient added: ${inserted.name}. Login ID: ${form.mrn || inserted.patient_id}. NFC link: ${generatedNfc}`);
     } catch (credentialError) {
       setStatus(`Patient created, but PIN setup failed: ${credentialError.message}`);
     }
@@ -1180,6 +1326,7 @@ function StaffPortal({ onLogout, authUser }) {
 }
 
 function PatientPortal({ onLogout, authUser }) {
+  const location = useLocation();
   const [patients, setPatients] = useState([]);
   const [selected, setSelected] = useState("");
   const { report, refreshReport, loading, error } = useCurrentReport(selected);
@@ -1262,6 +1409,9 @@ function PatientPortal({ onLogout, authUser }) {
 
   const trendData = useMemo(() => getTrend(report), [report]);
   const risk = Array.isArray(report?.risk_flags) ? report.risk_flags[0] : null;
+  const isDiagnosticsPage = location.pathname.startsWith("/patient/diagnostics");
+  const isAnalyticsPage = location.pathname.startsWith("/patient/analytics");
+  const isLabsPage = location.pathname.startsWith("/patient/labs");
 
   return (
     <Shell role="patient" onLogout={onLogout} authUser={authUser}>
@@ -1281,7 +1431,7 @@ function PatientPortal({ onLogout, authUser }) {
 
       {patients.length > 1 ? <PatientSelect patients={patients} selected={selected} setSelected={setSelected} /> : null}
 
-      <div className="st-grid-12">
+      {isDiagnosticsPage ? <div className="st-grid-12">
         <div className="col-8">
           <TrendCard data={trendData} />
         </div>
@@ -1302,9 +1452,11 @@ function PatientPortal({ onLogout, authUser }) {
             <p>{risk?.recommended_action || "Awaiting latest model output for recommendation."}</p>
           </section>
         </div>
-      </div>
+      </div> : null}
 
-      <div className="st-grid-12">
+      {isAnalyticsPage ? <AnalyticsCharts patientId={selected} report={report} title="Patient Analytics" /> : null}
+
+      {isLabsPage || isDiagnosticsPage ? <div className="st-grid-12">
         <section className="st-card col-5">
           <h3>Lab History</h3>
           <table className="st-table">
@@ -1363,7 +1515,7 @@ function PatientPortal({ onLogout, authUser }) {
           <h4 className="summary-head">Doctor Summary</h4>
           <p className="summary-text">{report?.reasoning || "No doctor summary available for selected patient."}</p>
         </section>
-      </div>
+      </div> : null}
     </Shell>
   );
 }
@@ -1597,6 +1749,36 @@ export default function App() {
           <ProtectedRoute
             authUser={authUser}
             allowedRoles={["doctor"]}
+            element={<Navigate to="/doctor/dashboard" replace />}
+          />
+        }
+      />
+      <Route
+        path="/doctor/dashboard"
+        element={
+          <ProtectedRoute
+            authUser={authUser}
+            allowedRoles={["doctor"]}
+            element={<DoctorPortal authUser={authUser} onLogout={onLogout} />}
+          />
+        }
+      />
+      <Route
+        path="/doctor/diagnostics"
+        element={
+          <ProtectedRoute
+            authUser={authUser}
+            allowedRoles={["doctor"]}
+            element={<DoctorPortal authUser={authUser} onLogout={onLogout} />}
+          />
+        }
+      />
+      <Route
+        path="/doctor/analytics"
+        element={
+          <ProtectedRoute
+            authUser={authUser}
+            allowedRoles={["doctor"]}
             element={<DoctorPortal authUser={authUser} onLogout={onLogout} />}
           />
         }
@@ -1633,6 +1815,36 @@ export default function App() {
       />
       <Route
         path="/patient"
+        element={
+          <ProtectedRoute
+            authUser={authUser}
+            allowedRoles={["patient"]}
+            element={<Navigate to="/patient/diagnostics" replace />}
+          />
+        }
+      />
+      <Route
+        path="/patient/diagnostics"
+        element={
+          <ProtectedRoute
+            authUser={authUser}
+            allowedRoles={["patient"]}
+            element={<PatientPortal authUser={authUser} onLogout={onLogout} />}
+          />
+        }
+      />
+      <Route
+        path="/patient/analytics"
+        element={
+          <ProtectedRoute
+            authUser={authUser}
+            allowedRoles={["patient"]}
+            element={<PatientPortal authUser={authUser} onLogout={onLogout} />}
+          />
+        }
+      />
+      <Route
+        path="/patient/labs"
         element={
           <ProtectedRoute
             authUser={authUser}

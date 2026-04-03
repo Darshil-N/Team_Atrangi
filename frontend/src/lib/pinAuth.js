@@ -61,14 +61,51 @@ export async function signInWithPin({ role, identifier, pin, actorIp = null }) {
     throw new Error(`${ROLE_MAP[normalizedRole].label} PIN must be exactly ${pinLength} digits.`);
   }
 
-  const lookup = await supabase
-    .from(CREDENTIAL_TABLE)
-    .select("id,identifier,role,pin_hash,display_name,must_rotate,failed_attempts,locked_until,last_login_at")
-    .eq("role", normalizedRole)
-    .eq("identifier", normalizedIdentifier)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
+  const fetchCredential = async (idValue) =>
+    supabase
+      .from(CREDENTIAL_TABLE)
+      .select("id,identifier,role,pin_hash,display_name,must_rotate,failed_attempts,locked_until,last_login_at")
+      .eq("role", normalizedRole)
+      .eq("identifier", idValue)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+  let lookup = await fetchCredential(normalizedIdentifier);
+
+  // Patient convenience fallback: if user typed MRN but credential was stored by UUID,
+  // or typed UUID but credential exists by MRN, resolve through patients table.
+  if ((!lookup.data || lookup.error) && normalizedRole === "patient") {
+    const bySubject = await supabase
+      .from("patients")
+      .select("patient_id,subject_id")
+      .ilike("subject_id", normalizedIdentifier)
+      .limit(1)
+      .maybeSingle();
+
+    if (!bySubject.error && bySubject.data?.patient_id) {
+      const fallbackByPatientId = await fetchCredential(normalizeIdentifier(bySubject.data.patient_id));
+      if (!fallbackByPatientId.error && fallbackByPatientId.data) {
+        lookup = fallbackByPatientId;
+      }
+    }
+
+    if ((!lookup.data || lookup.error) && /^[0-9a-f-]{32,36}$/i.test(normalizedIdentifier)) {
+      const byPatientId = await supabase
+        .from("patients")
+        .select("patient_id,subject_id")
+        .eq("patient_id", normalizedIdentifier)
+        .limit(1)
+        .maybeSingle();
+
+      if (!byPatientId.error && byPatientId.data?.subject_id) {
+        const fallbackBySubject = await fetchCredential(normalizeIdentifier(byPatientId.data.subject_id));
+        if (!fallbackBySubject.error && fallbackBySubject.data) {
+          lookup = fallbackBySubject;
+        }
+      }
+    }
+  }
 
   if (lookup.error) {
     throw new Error(`Authentication system error: ${lookup.error.message}`);

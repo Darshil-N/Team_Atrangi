@@ -391,6 +391,13 @@ h4,
   padding: 10px;
 }
 
+.analytics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .stepper {
   display: grid;
   gap: 16px;
@@ -960,6 +967,10 @@ h4,
   .care-grid,
   .evidence-grid,
   .final-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-grid {
     grid-template-columns: 1fr;
   }
 
