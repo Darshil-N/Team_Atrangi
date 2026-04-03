@@ -18,6 +18,7 @@ import {
 import { supabase } from "./lib/supabase";
 import { triggerAnalysis, uploadPatientFile } from "./lib/backendApi";
 import { changePin, hashPin, requiredPinLength, ROLE_MAP, signInWithPin } from "./lib/pinAuth";
+import html2pdf from "html2pdf.js";
 
 const SESSION_KEY = "hc01-pin-session";
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
@@ -133,23 +134,18 @@ function buildClinicalReportHtml(report, patientName) {
     )
     .join("");
 
-  return `<!doctype html>
-  <html>
-    <head>
-      <meta charset="utf-8" />
-      <title>Clinical Report</title>
+  return `
+    <div id="pdf-container">
       <style>
-        body { font-family: Arial, sans-serif; margin: 24px; color: #17212b; }
-        h1, h2, h3 { margin-bottom: 8px; }
-        .meta { margin-bottom: 20px; color: #465162; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        article { border: 1px solid #d7deea; border-radius: 10px; padding: 12px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        th, td { border-bottom: 1px solid #e5eaf2; padding: 8px; text-align: left; }
-        .reasoning { margin-top: 16px; padding: 12px; background: #f4f8ff; border-radius: 10px; }
+        #pdf-container { font-family: Arial, sans-serif; padding: 24px; color: #17212b; background: white; }
+        #pdf-container h1, #pdf-container h2, #pdf-container h3 { margin-bottom: 8px; }
+        #pdf-container .meta { margin-bottom: 20px; color: #465162; }
+        #pdf-container .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        #pdf-container article { border: 1px solid #d7deea; border-radius: 10px; padding: 12px; }
+        #pdf-container table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        #pdf-container th, #pdf-container td { border-bottom: 1px solid #e5eaf2; padding: 8px; text-align: left; }
+        #pdf-container .reasoning { margin-top: 16px; padding: 12px; background: #f4f8ff; border-radius: 10px; }
       </style>
-    </head>
-    <body>
       <h1>Clinical Decision Support Report</h1>
       <div class="meta">
         <p><strong>Patient:</strong> ${escapeHtml(patientName || "Unknown")}</p>
@@ -174,8 +170,8 @@ function buildClinicalReportHtml(report, patientName) {
         <h2>Chief Agent Reasoning</h2>
         <p>${escapeHtml(report?.reasoning || "No reasoning available.")}</p>
       </div>
-    </body>
-  </html>`;
+    </div>
+  `;
 }
 
 function getRoleNav(role) {
@@ -912,19 +908,30 @@ function DoctorPortal({ onLogout, authUser }) {
     await supabase.from("reports").update({ reasoning }).eq("id", report.id);
   }
 
-  function exportReport() {
+  async function exportReport() {
     if (!report) {
       window.alert("No report available to export");
       return;
     }
-    const html = buildClinicalReportHtml(report, selectedPatient?.name);
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `clinical-report-${report.patient_id || "patient"}-v${report.report_version || 1}.html`;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    try {
+      const html = buildClinicalReportHtml(report, selectedPatient?.name);
+      
+      const element = document.createElement("div");
+      element.innerHTML = html;
+      
+      const opt = {
+        margin:       0.5,
+        filename:     `clinical-report-${report.patient_id || "patient"}-v${report.report_version || 1}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      
+      await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error(err);
+      window.alert("Error generating PDF: " + err.message);
+    }
   }
 
   const riskFlags = Array.isArray(report?.risk_flags) ? report.risk_flags : [];
