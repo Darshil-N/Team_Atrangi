@@ -124,6 +124,8 @@ dist/
 frontend/.cache/
 frontend/*.log
 frontend/package-lock.json
+!frontend/src/lib/
+!frontend/src/lib/*.js
 
 # ── OS generated ─────────────────────────────────────────
 .DS_Store
