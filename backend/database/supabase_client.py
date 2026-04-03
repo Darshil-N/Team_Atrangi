@@ -193,6 +193,7 @@ def save_report(
     outlier_alerts: List[Dict],
     diagnosis_updated: bool,
     reasoning: str,
+    family_communication: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Persist a new report with graceful column-missing fallback.
@@ -220,7 +221,7 @@ def save_report(
         return merged
 
     current_report = get_current_report(patient_id)
-    next_version = int(current_report["report_version"]) if current_report else 1
+    next_version = (int(current_report["report_version"]) + 1) if current_report else 1
 
     merged_timeline = _merge_timeline(
         current_report.get("disease_timeline", []) if current_report else [],
@@ -241,29 +242,15 @@ def save_report(
         "outlier_alerts":    merged_outliers,
         "diagnosis_updated": merged_diagnosis_updated,
         "reasoning":         merged_reasoning,
+        "family_communication": family_communication or {},
         "is_current":        True,
     }
 
-    # If a current report already exists, update it in-place.
+    # If a current report already exists, mark it non-current first.
     if current_report:
-        update_payload = {
-            "disease_timeline":  full_payload["disease_timeline"],
-            "risk_flags":        full_payload["risk_flags"],
-            "outlier_alerts":    full_payload["outlier_alerts"],
-            "diagnosis_updated": full_payload["diagnosis_updated"],
-            "reasoning":         full_payload["reasoning"],
-            "generated_at":      datetime.now(timezone.utc).isoformat(),
-            "is_current":        True,
-        }
-        response = (
-            client.table("reports")
-            .update(update_payload)
-            .eq("id", current_report["id"])
-            .execute()
-        )
-        return response.data[0]
+        client.table("reports").update({"is_current": False}).eq("id", current_report["id"]).execute()
 
-    # Step 3a: try full insert
+    # Step 3a: insert as new versioned report row
     try:
         response = client.table("reports").insert(full_payload).execute()
         return response.data[0]
@@ -275,10 +262,21 @@ def save_report(
             "Falling back to minimal payload. Run ALTER TABLE migrations to fix.", exc
         )
 
+    # Retry once without optional family_communication for older schemas.
+    try:
+        payload_no_family = {k: v for k, v in full_payload.items() if k != "family_communication"}
+        response = client.table("reports").insert(payload_no_family).execute()
+        row = response.data[0]
+        row.setdefault("family_communication", family_communication or {})
+        return row
+    except Exception:
+        pass
+
     # Step 3b: minimal fallback — pack extras into outlier_alerts JSONB
     enriched = merged_outliers + [{"_meta": {
         "diagnosis_updated": merged_diagnosis_updated,
         "reasoning":         merged_reasoning,
+        "family_communication": family_communication or {},
     }}]
     minimal = {
         "patient_id":       patient_id,

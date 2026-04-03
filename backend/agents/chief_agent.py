@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 import google.generativeai as genai
@@ -74,6 +75,12 @@ Shape returned by run():
             "diagnosis_updated":     false,
         }, ...
     ],
+    "family_communication": {
+        "english": "string",
+        "regional_language": "string",
+        "regional_language_name": "Hindi",
+        "regional_language_code": "hi"
+    },
     "diagnosis_updated": bool,
     "reasoning":         str,
 }
@@ -203,6 +210,14 @@ LAB NARRATIVE:
    - This report is for DECISION SUPPORT ONLY, not clinical diagnosis.
    - Include this in "reasoning" if risk_flags are present.
 
+5. FAMILY COMMUNICATION OUTPUT (MANDATORY):
+    - Add a compassionate, jargon-free summary of the LAST 12 HOURS.
+    - It must be understandable by a non-medical family member.
+    - Provide two versions:
+      a) english
+      b) regional_language in {config.FAMILY_REGIONAL_LANGUAGE_NAME} ({config.FAMILY_REGIONAL_LANGUAGE_CODE})
+    - If a blocking outlier exists, clearly explain that diagnosis is NOT being revised until redraw confirmation.
+
 === REQUIRED OUTPUT FORMAT (JSON ONLY — no markdown, no extra text) ===
 {{
   "timeline": [
@@ -237,9 +252,102 @@ LAB NARRATIVE:
       "diagnosis_updated": false
     }}
   ],
+  "family_communication": {
+    "english": "string",
+    "regional_language": "string",
+    "regional_language_name": "{config.FAMILY_REGIONAL_LANGUAGE_NAME}",
+    "regional_language_code": "{config.FAMILY_REGIONAL_LANGUAGE_CODE}"
+  },
   "diagnosis_updated": true or false,
   "reasoning": "string"
 }}"""
+
+
+def _parse_iso_datetime(value: str) -> Optional[datetime]:
+    try:
+        if not value:
+            return None
+        text = value.replace("Z", "+00:00")
+        return datetime.fromisoformat(text)
+    except Exception:
+        return None
+
+
+def _build_family_communication(
+    state: PatientState,
+    report: Dict[str, Any],
+    lab_output: Dict[str, Any],
+) -> Dict[str, str]:
+    """Build deterministic bilingual family-facing summary for the last 12 hours."""
+    timeline: List[Dict[str, Any]] = state.get("timeline", []) or []
+    latest_dt: Optional[datetime] = None
+    for item in reversed(timeline):
+        dt = _parse_iso_datetime(str(item.get("timestamp", "")))
+        if dt is not None:
+            latest_dt = dt
+            break
+
+    if latest_dt is None:
+        last_12h = timeline[-6:]
+    else:
+        window_start = latest_dt - timedelta(hours=12)
+        last_12h = []
+        for item in timeline:
+            dt = _parse_iso_datetime(str(item.get("timestamp", "")))
+            if dt is None:
+                continue
+            if dt >= window_start:
+                last_12h.append(item)
+
+    risk_flags = report.get("risk_flags", []) or []
+    blocking = [
+        o for o in (lab_output.get("outliers", []) or [])
+        if o.get("probability") in _BLOCK_UPDATE_PROBABILITIES
+    ]
+
+    if last_12h:
+        last_status = str(last_12h[-1].get("type", "clinical")).lower()
+        data_points = len(last_12h)
+        english_intro = (
+            f"Over the last 12 hours, we reviewed {data_points} recent updates, including {last_status} information."
+        )
+    else:
+        english_intro = "Over the last 12 hours, we reviewed the latest available patient updates."
+
+    if risk_flags:
+        english_risk = (
+            f"The AI has identified {len(risk_flags)} concern area(s) that the care team is monitoring closely."
+        )
+    else:
+        english_risk = "Right now, there are no new major warning patterns from the latest data."
+
+    if blocking:
+        params = ", ".join(str(x.get("parameter", "lab value")) for x in blocking)
+        english_guard = (
+            f"One result ({params}) looks inconsistent with the last few days and may be mislabeled. "
+            "For safety, diagnosis has NOT been changed until a confirmed redraw is received."
+        )
+    else:
+        english_guard = "Current diagnosis decisions are based on consistent trends from the available data."
+
+    english = f"{english_intro} {english_risk} {english_guard}"
+
+    regional = (
+        "Pichhle 12 ghanton ki jankari ko dhyan se dekha gaya hai. "
+        "Care team patient ki sthiti par lagatar nazar rakhe hue hai. "
+        + (
+            "Ek naya lab result pichhle data se match nahin kar raha, isliye suraksha ke liye diagnosis tab tak update nahin kiya gaya hai jab tak redraw se pushti na ho jaye."
+            if blocking
+            else "Upalabdh data ke aadhaar par vartaman clinical faisle satark roop se liye ja rahe hain."
+        )
+    )
+
+    return {
+        "english": english,
+        "regional_language": regional,
+        "regional_language_name": config.FAMILY_REGIONAL_LANGUAGE_NAME,
+        "regional_language_code": config.FAMILY_REGIONAL_LANGUAGE_CODE,
+    }
 
 
 # ─────────────────────────────────────────────────────────
@@ -347,6 +455,16 @@ def _apply_outlier_guard(
             )
             report.setdefault("outlier_alerts", []).append(alert)
 
+    # Ensure blocking outliers are explicitly labeled as probable mismatch/lab error.
+    for alert in report.get("outlier_alerts", []):
+        if str(alert.get("flag", "")).upper() != "PROBABLE LAB ERROR":
+            for outlier in blocking_outliers:
+                if alert.get("parameter") == outlier.get("parameter"):
+                    alert["flag"] = "PROBABLE LAB ERROR"
+                    alert["action_required"] = "Do NOT alter diagnosis. Request confirmed redraw."
+                    alert["diagnosis_updated"] = False
+                    break
+
     return report
 
 
@@ -355,6 +473,7 @@ def _apply_outlier_guard(
 # ─────────────────────────────────────────────────────────
 
 def _build_fallback_report(
+    state: PatientState,
     lab_output: Dict[str, Any],
     error_msg: str,
 ) -> ChiefAgentOutput:
@@ -366,6 +485,7 @@ def _build_fallback_report(
         "timeline":          [],
         "risk_flags":        [],
         "outlier_alerts":    _build_outlier_alerts_from_lab(lab_output),
+        "family_communication": _build_family_communication(state, {"risk_flags": []}, lab_output),
         "diagnosis_updated": False,
         "reasoning": (
             f"Chief synthesis agent unavailable ({error_msg}). "
@@ -416,7 +536,7 @@ async def run(
     except Exception as exc:
         msg = f"chief_agent: Gemini API call failed: {exc}"
         logger.error(msg)
-        return _build_fallback_report(lab_output, str(exc))
+        return _build_fallback_report(state, lab_output, str(exc))
 
     # ── Parse JSON response ────────────────────────────────
     try:
@@ -424,10 +544,18 @@ async def run(
     except ValueError as exc:
         msg = f"chief_agent: JSON parse failed: {exc}"
         logger.error(msg)
-        return _build_fallback_report(lab_output, str(exc))
+        return _build_fallback_report(state, lab_output, str(exc))
 
     # ── Level 3 outlier guard (non-negotiable) ─────────────
     report = _apply_outlier_guard(report, lab_output)
+
+    # Ensure bilingual family communication is always present and structurally valid.
+    fc = report.get("family_communication")
+    if not isinstance(fc, dict) or not fc.get("english") or not fc.get("regional_language"):
+        report["family_communication"] = _build_family_communication(state, report, lab_output)
+    else:
+        report["family_communication"].setdefault("regional_language_name", config.FAMILY_REGIONAL_LANGUAGE_NAME)
+        report["family_communication"].setdefault("regional_language_code", config.FAMILY_REGIONAL_LANGUAGE_CODE)
 
     logger.info(
         "chief_agent: done — patient=%s, risk_flags=%d, outlier_alerts=%d, diagnosis_updated=%s",

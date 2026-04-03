@@ -28,6 +28,10 @@ from database.supabase_client import get_current_report, save_report
 
 logger = logging.getLogger(__name__)
 
+_active_runs: set[str] = set()
+_pending_runs: set[str] = set()
+_run_state_lock = asyncio.Lock()
+
 
 # ─────────────────────────────────────────────────────────
 # Main pipeline
@@ -123,6 +127,7 @@ async def run_pipeline(patient_id: str) -> Dict[str, Any]:
             outlier_alerts    = report.get("outlier_alerts", []),
             diagnosis_updated = report.get("diagnosis_updated", False),
             reasoning         = report.get("reasoning", ""),
+            family_communication = report.get("family_communication", {}),
         )
         report["_saved_report_id"] = saved.get("id")
         logger.info(
@@ -138,6 +143,52 @@ async def run_pipeline(patient_id: str) -> Dict[str, Any]:
 
     logger.info("orchestrator: ═══ PIPELINE COMPLETE — patient=%s ═══", patient_id)
     return report
+
+
+async def run_pipeline_queued(patient_id: str, reason: str = "manual") -> Dict[str, Any]:
+    """
+    Queue-safe runner for one patient.
+
+    Behaviour:
+      - If no run is active: starts immediately.
+      - If a run is already active for the same patient: marks a pending rerun and exits.
+      - Active runner loops once more when pending flag is set, ensuring latest uploads are analyzed.
+    """
+    if not patient_id:
+        raise ValueError("patient_id must not be empty.")
+
+    async with _run_state_lock:
+        if patient_id in _active_runs:
+            _pending_runs.add(patient_id)
+            logger.info(
+                "orchestrator: queued rerun — patient=%s, reason=%s",
+                patient_id,
+                reason,
+            )
+            return {
+                "_status": "queued",
+                "_saved_report_id": None,
+                "reasoning": "Analysis rerun queued while current run is in progress.",
+            }
+        _active_runs.add(patient_id)
+
+    try:
+        while True:
+            async with _run_state_lock:
+                _pending_runs.discard(patient_id)
+
+            result = await run_pipeline(patient_id)
+
+            async with _run_state_lock:
+                should_rerun = patient_id in _pending_runs
+
+            if not should_rerun:
+                return result
+
+            logger.info("orchestrator: executing queued rerun — patient=%s", patient_id)
+    finally:
+        async with _run_state_lock:
+            _active_runs.discard(patient_id)
 
 
 # ─────────────────────────────────────────────────────────

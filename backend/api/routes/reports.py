@@ -10,7 +10,7 @@ from typing import Any, Dict
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-from agents.orchestrator import run_pipeline
+from agents.orchestrator import run_pipeline_queued
 from database.supabase_client import get_current_report
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class AnalyseResponse(BaseModel):
 async def _run_pipeline_task(patient_id: str) -> None:
     """Async wrapper so FastAPI BackgroundTasks can schedule the pipeline."""
     try:
-        report = await run_pipeline(patient_id)
+        report = await run_pipeline_queued(patient_id, reason="reports.analyse")
         logger.info(
             "Background pipeline complete — patient=%s, report_id=%s",
             patient_id, report.get("_saved_report_id"),

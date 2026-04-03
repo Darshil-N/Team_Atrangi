@@ -24,9 +24,11 @@ from typing import List, Optional
 from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from agents.orchestrator import run_pipeline
+import config
+from agents.orchestrator import run_pipeline_queued
 from database.storage_client import upload_file as storage_upload
 from database.supabase_client import (
+    get_parsed_data,
     get_patient,
     insert_parsed_data,
     insert_raw_data,
@@ -60,7 +62,7 @@ class UploadResponse(BaseModel):
 async def _trigger_pipeline(patient_id: str, filename: str) -> None:
     """Run the full agent pipeline after successful upload."""
     try:
-        report = await run_pipeline(patient_id)
+        report = await run_pipeline_queued(patient_id, reason=f"upload:{filename}")
         logger.info(
             "upload: auto-pipeline complete — patient=%s, file=%s, report_id=%s",
             patient_id, filename, report.get("_saved_report_id"),
@@ -91,7 +93,7 @@ async def upload_patient_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     data_type: str = Form(default="auto"),
-    trigger_analysis: bool = Form(default=True),
+    trigger_analysis: bool = Form(default=False),
 ) -> UploadResponse:
     """
     Upload a clinical file for a patient.
@@ -154,12 +156,14 @@ async def upload_patient_file(
     )
 
     # ── 4. Store raw file in Supabase Storage ────────────
-    file_url = storage_upload(
-        patient_id=patient_id,
-        filename=filename,
-        file_bytes=file_bytes,
-        content_type=_content_type(filename),
-    )
+    file_url = None
+    if config.STORAGE_UPLOAD_ENABLED:
+        file_url = storage_upload(
+            patient_id=patient_id,
+            filename=filename,
+            file_bytes=file_bytes,
+            content_type=_content_type(filename),
+        )
 
     # ── 5. Parse file → list of ParseResults ─────────────
     all_warnings: List[str] = []
@@ -209,12 +213,27 @@ async def upload_patient_file(
     )
 
     # ── 8. Optionally trigger pipeline after upload ───────
+    existing_context_rows = 0
+    if rows_inserted == 0 and trigger_analysis:
+        try:
+            existing_context_rows = len(get_parsed_data(patient_id))
+        except Exception as exc:
+            logger.warning("upload: parsed_data lookup failed (non-fatal): %s", exc)
+
     if rows_inserted > 0 and trigger_analysis:
         background_tasks.add_task(_trigger_pipeline, patient_id, filename)
         analysis_triggered = True
         message = (
             f"Uploaded and parsed '{filename}' — {rows_inserted} row(s) stored. "
             "Agent pipeline triggered. Poll GET /reports/{patient_id}/current for results."
+        )
+    elif rows_inserted == 0 and trigger_analysis and existing_context_rows > 0:
+        background_tasks.add_task(_trigger_pipeline, patient_id, filename)
+        analysis_triggered = True
+        message = (
+            f"File '{filename}' produced no new rows, but existing context is available "
+            f"({existing_context_rows} row(s)). Re-analysis triggered. "
+            "Poll GET /reports/{patient_id}/current for results."
         )
     elif rows_inserted > 0:
         analysis_triggered = False

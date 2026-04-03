@@ -52,11 +52,15 @@ CREATE TABLE IF NOT EXISTS reports (
     disease_timeline  JSONB       NOT NULL DEFAULT '[]',
     risk_flags        JSONB       NOT NULL DEFAULT '[]',
     outlier_alerts    JSONB       NOT NULL DEFAULT '[]',
+    family_communication JSONB    NOT NULL DEFAULT '{}',
     diagnosis_updated BOOLEAN     NOT NULL DEFAULT false,
     reasoning         TEXT        NOT NULL DEFAULT '',
     generated_at      TIMESTAMPTZ DEFAULT NOW(),
     is_current        BOOLEAN     NOT NULL DEFAULT true
 );
+
+ALTER TABLE reports
+ADD COLUMN IF NOT EXISTS family_communication JSONB NOT NULL DEFAULT '{}';
 
 -- Only one report per patient should have is_current = true at any time.
 -- Enforced in application logic (supabase_client.save_report).

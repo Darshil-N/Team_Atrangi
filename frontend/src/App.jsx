@@ -135,11 +135,144 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function buildBarChartSvg(data, color = "#1d4ed8") {
+  const width = 560;
+  const height = 220;
+  const pad = { top: 14, right: 16, bottom: 54, left: 40 };
+  const innerW = width - pad.left - pad.right;
+  const innerH = height - pad.top - pad.bottom;
+  const maxVal = Math.max(1, ...data.map((d) => Number(d.value || 0)));
+  const barW = data.length ? Math.max(18, innerW / data.length - 10) : 24;
+
+  const bars = data
+    .map((d, i) => {
+      const v = Number(d.value || 0);
+      const h = Math.max(0, (v / maxVal) * innerH);
+      const x = pad.left + i * (barW + 10);
+      const y = pad.top + innerH - h;
+      const labelX = x + barW / 2;
+      return `
+        <rect x="${x}" y="${y}" width="${barW}" height="${h}" rx="5" fill="${color}" />
+        <text x="${labelX}" y="${y - 6}" text-anchor="middle" font-size="10" fill="#334155">${escapeHtml(v)}</text>
+        <text x="${labelX}" y="${pad.top + innerH + 14}" text-anchor="middle" font-size="9" fill="#475569">${escapeHtml(d.name)}</text>
+      `;
+    })
+    .join("");
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="Bar chart">
+      <line x1="${pad.left}" y1="${pad.top + innerH}" x2="${width - pad.right}" y2="${pad.top + innerH}" stroke="#cbd5e1" />
+      ${bars}
+    </svg>
+  `;
+}
+
+function buildTimelineSvg(trendData) {
+  const width = 980;
+  const height = 290;
+  const pad = { top: 16, right: 22, bottom: 40, left: 44 };
+  const innerW = width - pad.left - pad.right;
+  const innerH = height - pad.top - pad.bottom;
+
+  const keys = [
+    { key: "wbc", color: "#1d4ed8", label: "WBC" },
+    { key: "lactate", color: "#f59e0b", label: "Lactate" },
+    { key: "spo2", color: "#0f766e", label: "SpO2" },
+  ];
+
+  const allValues = [];
+  trendData.forEach((row) => {
+    keys.forEach(({ key }) => {
+      const n = Number(row[key]);
+      if (Number.isFinite(n)) allValues.push(n);
+    });
+  });
+
+  if (!allValues.length || trendData.length < 2) {
+    return "<div class='chart-empty'>Not enough data points for timeline chart.</div>";
+  }
+
+  const yMin = Math.min(...allValues);
+  const yMax = Math.max(...allValues);
+  const yRange = Math.max(1, yMax - yMin);
+
+  const xAt = (i) => pad.left + (i / (trendData.length - 1)) * innerW;
+  const yAt = (v) => pad.top + innerH - ((v - yMin) / yRange) * innerH;
+
+  const lines = keys
+    .map(({ key, color }) => {
+      const points = trendData
+        .map((row, i) => {
+          const v = Number(row[key]);
+          if (!Number.isFinite(v)) return null;
+          return `${xAt(i)},${yAt(v)}`;
+        })
+        .filter(Boolean)
+        .join(" ");
+      if (!points) return "";
+      return `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />`;
+    })
+    .join("");
+
+  const xTicks = trendData
+    .filter((_, i) => i % Math.max(1, Math.floor(trendData.length / 6)) === 0)
+    .map((row, i) => {
+      const idx = trendData.findIndex((x) => x.label === row.label && x === row);
+      const x = xAt(idx < 0 ? i : idx);
+      return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="9" fill="#475569">${escapeHtml(String(row.label || ""))}</text>`;
+    })
+    .join("");
+
+  const legend = keys
+    .map((k, i) => {
+      const lx = pad.left + i * 110;
+      return `
+        <rect x="${lx}" y="8" width="14" height="3" fill="${k.color}" />
+        <text x="${lx + 20}" y="12" font-size="10" fill="#334155">${k.label}</text>
+      `;
+    })
+    .join("");
+
+  return `
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="Timeline chart">
+      <rect x="${pad.left}" y="${pad.top}" width="${innerW}" height="${innerH}" fill="#f8fbff" stroke="#e2e8f0" />
+      <line x1="${pad.left}" y1="${pad.top + innerH}" x2="${width - pad.right}" y2="${pad.top + innerH}" stroke="#cbd5e1" />
+      <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + innerH}" stroke="#cbd5e1" />
+      ${lines}
+      ${xTicks}
+      ${legend}
+    </svg>
+  `;
+}
+
 function buildClinicalReportHtml(report, patientName) {
   const riskFlags = Array.isArray(report?.risk_flags) ? report.risk_flags : [];
   const outliers = Array.isArray(report?.outlier_alerts) ? report.outlier_alerts : [];
   const timeline = getTimelineRows(report);
+  const trendData = getTrend(report);
   const generatedAt = report?.generated_at ? new Date(report.generated_at).toLocaleString() : "N/A";
+
+  const severityCounts = {};
+  riskFlags.forEach((risk) => {
+    const sev = String(risk?.severity || "UNKNOWN").toUpperCase();
+    severityCounts[sev] = (severityCounts[sev] || 0) + 1;
+  });
+  const severityData = Object.entries(severityCounts).map(([name, value]) => ({ name, value }));
+
+  const sourceData = [
+    {
+      name: "notes",
+      value: timeline.filter((t) => Array.isArray(t?.symptoms) && t.symptoms.length > 0).length,
+    },
+    {
+      name: "labs",
+      value: timeline.filter((t) => t?.labs && Object.keys(t.labs || {}).length > 0).length,
+    },
+    {
+      name: "vitals",
+      value: timeline.filter((t) => t?.vitals && Object.keys(t.vitals || {}).length > 0).length,
+    },
+  ];
 
   const risksHtml = riskFlags
     .map(
@@ -179,10 +312,15 @@ function buildClinicalReportHtml(report, patientName) {
   return `
     <div id="pdf-container">
       <style>
-        #pdf-container { font-family: Arial, sans-serif; padding: 24px; color: #17212b; background: white; }
+        #pdf-container { font-family: Arial, sans-serif; padding: 20px; color: #17212b; background: white; }
         #pdf-container h1, #pdf-container h2, #pdf-container h3 { margin-bottom: 8px; }
         #pdf-container .meta { margin-bottom: 20px; color: #465162; }
         #pdf-container .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        #pdf-container .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0 16px; }
+        #pdf-container .chart-card { border: 1px solid #d7deea; border-radius: 10px; padding: 10px; background: #fbfdff; }
+        #pdf-container .chart-card h3 { margin: 0 0 8px; }
+        #pdf-container .timeline-chart { border: 1px solid #d7deea; border-radius: 10px; padding: 10px; margin-bottom: 14px; background: #fbfdff; }
+        #pdf-container .chart-empty { font-size: 12px; color: #64748b; padding: 6px 0; }
         #pdf-container article { border: 1px solid #d7deea; border-radius: 10px; padding: 12px; }
         #pdf-container table { width: 100%; border-collapse: collapse; margin-top: 8px; }
         #pdf-container th, #pdf-container td { border-bottom: 1px solid #e5eaf2; padding: 8px; text-align: left; }
@@ -194,6 +332,23 @@ function buildClinicalReportHtml(report, patientName) {
         <p><strong>Patient ID:</strong> ${escapeHtml(report?.patient_id || "N/A")}</p>
         <p><strong>Report Version:</strong> ${escapeHtml(report?.report_version || 1)}</p>
         <p><strong>Generated At:</strong> ${escapeHtml(generatedAt)}</p>
+      </div>
+
+      <h2>Graphical Summary</h2>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>Risk Severity Bar Graph</h3>
+          ${severityData.length ? buildBarChartSvg(severityData, "#1d4ed8") : "<div class='chart-empty'>No risk severity data.</div>"}
+        </div>
+        <div class="chart-card">
+          <h3>Data Source Bar Graph</h3>
+          ${buildBarChartSvg(sourceData, "#0f766e")}
+        </div>
+      </div>
+
+      <div class="timeline-chart">
+        <h3>24-Hour Timeline Trend Graph</h3>
+        ${buildTimelineSvg(trendData)}
       </div>
 
       <h2>Risk Flags</h2>
@@ -238,6 +393,7 @@ function getRoleTabs(role) {
     return [
       { label: "Diagnostics", to: "/patient/diagnostics" },
       { label: "Analytics", to: "/patient/analytics" },
+      { label: "Family Communication", to: "/patient/family" },
       { label: "Laboratory", to: "/patient/labs" },
     ];
   }
@@ -245,6 +401,7 @@ function getRoleTabs(role) {
     { label: "Dashboard", to: "/doctor/dashboard" },
     { label: "Diagnostics", to: "/doctor/diagnostics" },
     { label: "Analytics", to: "/doctor/analytics" },
+    { label: "Family Communication", to: "/doctor/family" },
   ];
 }
 
@@ -380,6 +537,7 @@ function SideBar({ onLogout, authUser, role }) {
       { label: "Dashboard", to: "/doctor/dashboard", icon: "space_dashboard" },
       { label: "Diagnostics", to: "/doctor/diagnostics", icon: "biotech" },
       { label: "Analytics", to: "/doctor/analytics", icon: "insights" },
+      { label: "Family Communication", to: "/doctor/family", icon: "record_voice_over" },
       { label: "Settings", to: "/settings", icon: "settings" },
     ],
     staff: [
@@ -390,6 +548,7 @@ function SideBar({ onLogout, authUser, role }) {
     patient: [
       { label: "Diagnostics", to: "/patient/diagnostics", icon: "biotech" },
       { label: "Analytics", to: "/patient/analytics", icon: "insights" },
+      { label: "Family Communication", to: "/patient/family", icon: "record_voice_over" },
       { label: "Laboratory", to: "/patient/labs", icon: "science" },
       { label: "Settings", to: "/settings", icon: "settings" },
     ],
@@ -731,6 +890,66 @@ function FinalReportView({ report, patientName }) {
   );
 }
 
+function getFamilyCommunication(report) {
+  const direct = report?.family_communication;
+  if (direct && typeof direct === "object") {
+    return {
+      english: direct.english || "",
+      regional_language: direct.regional_language || "",
+      regional_language_name: direct.regional_language_name || "Regional language",
+    };
+  }
+
+  const outliers = Array.isArray(report?.outlier_alerts) ? report.outlier_alerts : [];
+  const meta = outliers.find((item) => item && typeof item === "object" && item._meta)?. _meta;
+  const fallback = meta?.family_communication;
+  if (fallback && typeof fallback === "object") {
+    return {
+      english: fallback.english || "",
+      regional_language: fallback.regional_language || "",
+      regional_language_name: fallback.regional_language_name || "Regional language",
+    };
+  }
+
+  return {
+    english: "",
+    regional_language: "",
+    regional_language_name: "Regional language",
+  };
+}
+
+function FamilyCommunicationView({ report, patientName }) {
+  const family = getFamilyCommunication(report);
+
+  return (
+    <section className="st-card final-report-shell">
+      <div className="final-head">
+        <div>
+          <p className="eyebrow">Family Communication</p>
+          <h3>Last 12 Hours Summary</h3>
+          <p className="muted">Patient: {patientName || "Unknown"} • Version {report?.report_version || 1}</p>
+        </div>
+      </div>
+
+      <div className="final-grid">
+        <article className="final-card">
+          <h4>English</h4>
+          <p>{family.english || "Family summary not available yet. Please run analysis again."}</p>
+        </article>
+
+        <article className="final-card">
+          <h4>{family.regional_language_name}</h4>
+          <p>{family.regional_language || "Regional translation not available yet. Please run analysis again."}</p>
+        </article>
+      </div>
+
+      <p className="safety-note">
+        This section is written for non-medical family communication. Clinical decisions must always follow physician guidance.
+      </p>
+    </section>
+  );
+}
+
 function LandingPage() {
   return (
     <div className="landing-bg">
@@ -977,6 +1196,7 @@ function DoctorPortal({ onLogout, authUser }) {
   const isAnalyticsPage = location.pathname.startsWith("/doctor/analytics");
   const isDiagnosticsPage = location.pathname.startsWith("/doctor/diagnostics");
   const isDashboardPage = location.pathname.startsWith("/doctor/dashboard");
+  const isFamilyPage = location.pathname.startsWith("/doctor/family");
   const dashboardStats = [
     { label: "Risk Flags", value: riskFlags.length },
     { label: "Outlier Alerts", value: outliers.length },
@@ -1005,6 +1225,8 @@ function DoctorPortal({ onLogout, authUser }) {
       <PatientSelect patients={patients} selected={selected} setSelected={setSelected} />
 
       {isDiagnosticsPage ? <FinalReportView report={report} patientName={selectedPatient?.name} /> : null}
+
+      {isFamilyPage ? <FamilyCommunicationView report={report} patientName={selectedPatient?.name} /> : null}
 
       {isAnalyticsPage ? <AnalyticsCharts patientId={selected} report={report} title="Doctor Analytics" /> : null}
 
@@ -1480,6 +1702,7 @@ function PatientPortal({ onLogout, authUser }) {
   const risk = Array.isArray(report?.risk_flags) ? report.risk_flags[0] : null;
   const isDiagnosticsPage = location.pathname.startsWith("/patient/diagnostics");
   const isAnalyticsPage = location.pathname.startsWith("/patient/analytics");
+  const isFamilyPage = location.pathname.startsWith("/patient/family");
   const isLabsPage = location.pathname.startsWith("/patient/labs");
 
   return (
@@ -1524,6 +1747,8 @@ function PatientPortal({ onLogout, authUser }) {
       </div> : null}
 
       {isAnalyticsPage ? <AnalyticsCharts patientId={selected} report={report} title="Patient Analytics" /> : null}
+
+      {isFamilyPage ? <FamilyCommunicationView report={report} patientName={patients.find((p) => p.patient_id === selected)?.name} /> : null}
 
       {isLabsPage ? <div className="st-grid-12">
         <section className="st-card col-5">
@@ -1946,6 +2171,16 @@ export default function App() {
         }
       />
       <Route
+        path="/doctor/family"
+        element={
+          <ProtectedRoute
+            authUser={authUser}
+            allowedRoles={["doctor"]}
+            element={<DoctorPortal authUser={authUser} onLogout={onLogout} />}
+          />
+        }
+      />
+      <Route
         path="/staff"
         element={
           <ProtectedRoute
@@ -1997,6 +2232,16 @@ export default function App() {
       />
       <Route
         path="/patient/analytics"
+        element={
+          <ProtectedRoute
+            authUser={authUser}
+            allowedRoles={["patient"]}
+            element={<PatientPortal authUser={authUser} onLogout={onLogout} />}
+          />
+        }
+      />
+      <Route
+        path="/patient/family"
         element={
           <ProtectedRoute
             authUser={authUser}
