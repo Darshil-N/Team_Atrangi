@@ -1,0 +1,146 @@
+# ─────────────────────────────────────────────────────────
+# HC01 Saanjivani — .gitignore
+# ─────────────────────────────────────────────────────────
+
+# ── Secrets & Environment ────────────────────────────────
+.env
+**/.env
+backend/.env
+.env.local
+.env.*.local
+*.env
+!.env.example          # keep the template, never the real one
+!backend/.env.example  # same for the backend copy
+
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+pip-wheel-metadata/
+share/python-wheels/
+.eggs/
+MANIFEST
+
+# ── Virtual environments ─────────────────────────────────
+venv/
+env/
+ENV/
+.venv/
+.env/
+venv.bak/
+
+# ── ChromaDB persistent storage ─────────────────────────
+# Contains embedded vectors — large and rebuildable
+backend/chroma_db/
+backend/chroma_data/
+chroma_db/
+chroma_data/
+*.chroma/
+
+# ── HuggingFace model cache ──────────────────────────────
+# Models are re-downloaded automatically on first run
+.cache/
+backend/.cache/
+~/.cache/huggingface/
+
+# ── Jupyter Notebooks ────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Test & debug artefacts ───────────────────────────────
+backend/check_install.py
+backend/seed_test.py
+backend/verify_imports.py
+*.log
+logs/
+
+# ── Sensitive context / planning docs ────────────────────
+# Contains internal system architecture details
+Complete_context.txt
+
+# ── Coverage & testing ───────────────────────────────────
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# ── Type checkers ────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# ── Node.js / Frontend ───────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.next/
+out/
+.nuxt/
+dist/
+.cache/
+.parcel-cache/
+*.tsbuildinfo
+.eslintcache
+
+# ── OS generated ─────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── IDE / Editor ─────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ── Uploaded patient files (never commit PHI) ────────────
+backend/uploads/
+data/uploads/
+*.pdf
+*.xlsx
+*.csv
+# Exception: keep sample/demo data if explicitly named
+!data/sample_*.csv
+!data/demo_*.pdf
+
+# ── Supabase local dev ───────────────────────────────────
+supabase/.branches/
+supabase/.temp/

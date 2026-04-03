@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────
+# HC01 Backend Requirements
+# Install: pip install -r requirements.txt
+# ─────────────────────────────────────────────────────────
+
+# API framework
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+pydantic
+httpx
+
+# Supabase
+supabase
+
+# LangChain ecosystem
+langchain
+langchain-community
+langchain-ollama
+langchain-google-genai
+
+# AI / Embeddings
+google-generativeai
+chromadb
+sentence-transformers
+
+# Data processing
+pandas
+numpy
+scipy
+openpyxl
+
+# Document parsing
+PyPDF2
+pdfplumber
+
+# Async utilities
+anyio
