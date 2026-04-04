@@ -1,8 +1,8 @@
 """
-processing/file_router.py — Detects file type and routes to correct parser.
+processing/file_router.py  Detects file type and routes to correct parser.
 
 Returns a list of ParseResult dicts ready to be inserted into parsed_data.
-One file can produce multiple rows (e.g. a CSV with 7 lab rows → 7 results).
+One file can produce multiple rows (e.g. a CSV with 7 lab rows  7 results).
 
 Usage:
     from processing.file_router import route
@@ -16,9 +16,6 @@ from typing import Any, Dict, List, Literal
 
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────────────────
-# Shared result type (all parsers return this shape)
-# ─────────────────────────────────────────────────────────
 
 ParseResult = Dict[str, Any]
 """
@@ -35,9 +32,6 @@ ParseResult = Dict[str, Any]
 DataTypeHint = Literal["note", "lab", "vital", "auto"]
 
 
-# ─────────────────────────────────────────────────────────
-# Extension → (default_data_type, parser_key)
-# ─────────────────────────────────────────────────────────
 
 _EXT_MAP: Dict[str, str] = {
     ".txt":  "note",
@@ -100,20 +94,17 @@ def route(
         )
 
     parser_key = _EXT_MAP[ext]
-    logger.info("file_router: %s → parser_key=%s, hint=%s", filename, parser_key, hint)
+    logger.info("file_router: %s  parser_key=%s, hint=%s", filename, parser_key, hint)
 
-    # JSON should always go through text_parser to preserve structured payloads.
     if ext == ".json":
         from processing.parsers.text_parser import parse as parse_text
         data_type = hint if hint != "auto" else "note"
         return [parse_text(file_bytes, filename, data_type=data_type)]
 
-    # CSV/Excel always use tabular parser.
     if parser_key == "lab":
         from processing.parsers.lab_csv_parser import parse as parse_csv
         return parse_csv(file_bytes, filename)
 
-    # PDF can be forced by hint, otherwise auto-detect tables.
     if parser_key == "pdf":
         if hint == "note":
             from processing.parsers.pdf_note_parser import parse as parse_pdf_note
@@ -124,7 +115,6 @@ def route(
         from processing.parsers.pdf_note_parser import parse as parse_pdf_note
         return [parse_pdf_note(file_bytes, filename)]
 
-    # ── Route to correct parser ────────────────────────────
     if parser_key == "note":
         from processing.parsers.text_parser import parse as parse_text
         data_type = hint if hint != "auto" else "note"

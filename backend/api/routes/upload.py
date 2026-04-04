@@ -1,5 +1,5 @@
 """
-api/routes/upload.py — File ingestion endpoint.
+api/routes/upload.py  File ingestion endpoint.
 
 POST /upload/{patient_id}
   - Accepts: PDF, CSV, XLSX, TXT, JSON
@@ -39,9 +39,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ─────────────────────────────────────────────────────────
-# Response model
-# ─────────────────────────────────────────────────────────
 
 class UploadResponse(BaseModel):
     patient_id:          str
@@ -55,37 +52,28 @@ class UploadResponse(BaseModel):
     message:             str
 
 
-# ─────────────────────────────────────────────────────────
-# Background task
-# ─────────────────────────────────────────────────────────
 
 async def _trigger_pipeline(patient_id: str, filename: str) -> None:
     """Run the full agent pipeline after successful upload."""
     try:
         report = await run_pipeline_queued(patient_id, reason=f"upload:{filename}")
         logger.info(
-            "upload: auto-pipeline complete — patient=%s, file=%s, report_id=%s",
+            "upload: auto-pipeline complete  patient=%s, file=%s, report_id=%s",
             patient_id, filename, report.get("_saved_report_id"),
         )
     except Exception as exc:
         logger.error(
-            "upload: auto-pipeline FAILED — patient=%s, file=%s: %s",
+            "upload: auto-pipeline FAILED  patient=%s, file=%s: %s",
             patient_id, filename, exc,
         )
 
 
-# ─────────────────────────────────────────────────────────
-# MIME type helper
-# ─────────────────────────────────────────────────────────
 
 def _content_type(filename: str) -> str:
     mime, _ = mimetypes.guess_type(filename)
     return mime or "application/octet-stream"
 
 
-# ─────────────────────────────────────────────────────────
-# Upload endpoint
-# ─────────────────────────────────────────────────────────
 
 @router.post("/{patient_id}", response_model=UploadResponse)
 async def upload_patient_file(
@@ -109,7 +97,6 @@ async def upload_patient_file(
     """
     filename = file.filename or "upload"
 
-    # ── 0. Validate patient_id format early ──────────────
     try:
         UUID(patient_id)
     except ValueError:
@@ -121,7 +108,6 @@ async def upload_patient_file(
             ),
         )
 
-    # ── 1. Validate data_type param ───────────────────────
     valid_types = {"note", "lab", "vital", "auto"}
     if data_type not in valid_types:
         raise HTTPException(
@@ -129,7 +115,6 @@ async def upload_patient_file(
             detail=f"data_type must be one of: {valid_types}. Got '{data_type}'.",
         )
 
-    # ── 2. Validate patient exists ────────────────────────
     try:
         patient = get_patient(patient_id)
     except Exception as exc:
@@ -141,7 +126,6 @@ async def upload_patient_file(
             detail=f"Patient '{patient_id}' not found. Create the patient first.",
         )
 
-    # ── 3. Read file bytes ────────────────────────────────
     try:
         file_bytes = await file.read()
     except Exception as exc:
@@ -155,7 +139,6 @@ async def upload_patient_file(
         filename, len(file_bytes), data_type, patient_id,
     )
 
-    # ── 4. Store raw file in Supabase Storage ────────────
     file_url = None
     if config.STORAGE_UPLOAD_ENABLED:
         file_url = storage_upload(
@@ -165,7 +148,6 @@ async def upload_patient_file(
             content_type=_content_type(filename),
         )
 
-    # ── 5. Parse file → list of ParseResults ─────────────
     all_warnings: List[str] = []
     parse_results = []
     try:
@@ -176,18 +158,16 @@ async def upload_patient_file(
         logger.error("upload: parsing failed for '%s': %s", filename, exc)
         raise HTTPException(status_code=500, detail=f"File parsing error: {exc}")
 
-    # ── 6. Insert raw_data metadata ───────────────────────
     try:
         insert_raw_data(
             patient_id=patient_id,
             data_type=parse_results[0]["data_type"] if parse_results else data_type,
             file_url=file_url or "",
-            raw_content=None,  # raw bytes not stored as text — use Storage URL
+            raw_content=None,  # raw bytes not stored as text  use Storage URL
         )
     except Exception as exc:
         logger.warning("upload: insert_raw_data failed (non-fatal): %s", exc)
 
-    # ── 7. Insert each ParseResult into parsed_data ───────
     rows_inserted = 0
     timestamps: List[str] = []
 
@@ -212,7 +192,6 @@ async def upload_patient_file(
         rows_inserted, len(parse_results), patient_id, filename,
     )
 
-    # ── 8. Optionally trigger pipeline after upload ───────
     existing_context_rows = 0
     if rows_inserted == 0 and trigger_analysis:
         try:
@@ -224,7 +203,7 @@ async def upload_patient_file(
         background_tasks.add_task(_trigger_pipeline, patient_id, filename)
         analysis_triggered = True
         message = (
-            f"Uploaded and parsed '{filename}' — {rows_inserted} row(s) stored. "
+            f"Uploaded and parsed '{filename}'  {rows_inserted} row(s) stored. "
             "Agent pipeline triggered. Poll GET /reports/{patient_id}/current for results."
         )
     elif rows_inserted == 0 and trigger_analysis and existing_context_rows > 0:
@@ -238,7 +217,7 @@ async def upload_patient_file(
     elif rows_inserted > 0:
         analysis_triggered = False
         message = (
-            f"Uploaded and parsed '{filename}' — {rows_inserted} row(s) stored. "
+            f"Uploaded and parsed '{filename}'  {rows_inserted} row(s) stored. "
             "Analysis deferred. Call POST /reports/analyse when all files are uploaded."
         )
     else:

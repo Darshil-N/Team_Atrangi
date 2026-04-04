@@ -1,5 +1,5 @@
 """
-database/storage_client.py — Upload raw patient files to Supabase Storage.
+database/storage_client.py  Upload raw patient files to Supabase Storage.
 
 Bucket: hc01-patient-files
 Path:   {patient_id}/{timestamp}_{filename}
@@ -43,7 +43,7 @@ def upload_file(
     Upload raw file bytes to Supabase Storage.
 
     Args:
-        patient_id:   Patient UUID — used as the folder prefix.
+        patient_id:   Patient UUID  used as the folder prefix.
         filename:     Original filename.
         file_bytes:   Raw file content.
         content_type: MIME type (e.g. "application/pdf", "text/csv").
@@ -55,7 +55,6 @@ def upload_file(
         from database.supabase_client import get_client
         client = get_client()
 
-        # Namespace by patient + timestamp to avoid collisions
         ts_slug = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         storage_path = f"{patient_id}/{ts_slug}_{filename}"
 
@@ -65,19 +64,18 @@ def upload_file(
             file_options={"content-type": content_type, "upsert": "true"},
         )
 
-        # Build the public URL
         url_resp = client.storage.from_(BUCKET).get_public_url(storage_path)
         public_url = _extract_public_url(url_resp)
 
         logger.info(
-            "storage_client: uploaded '%s' → %s (%d bytes)",
+            "storage_client: uploaded '%s'  %s (%d bytes)",
             filename, storage_path, len(file_bytes),
         )
         return public_url
 
     except Exception as exc:
         logger.warning(
-            "storage_client: upload FAILED for '%s' — %s. "
+            "storage_client: upload FAILED for '%s'  %s. "
             "Continuing without file URL (parsed data still saved).",
             filename, exc,
         )
@@ -92,7 +90,6 @@ def get_file_url(patient_id: str, filename: str) -> Optional[str]:
     try:
         from database.supabase_client import get_client
         client = get_client()
-        # List files matching this patient
         files = client.storage.from_(BUCKET).list(patient_id)
         for f in files:
             if filename in f.get("name", ""):

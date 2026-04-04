@@ -1,5 +1,5 @@
 """
-processing/parsers/pdf_note_parser.py — Extract clinical note text from PDFs.
+processing/parsers/pdf_note_parser.py  Extract clinical note text from PDFs.
 
 Uses pdfplumber for accurate text extraction with layout awareness.
 Handles multi-page, multi-column, and scanned (text-less) PDFs gracefully.
@@ -24,11 +24,8 @@ def _clean_text(raw: str) -> str:
     - Headers/footers that repeat across pages (detected by short repeated lines)
     - Excessive whitespace
     """
-    # Collapse runs of 3+ newlines to 2
     text = re.sub(r"\n{3,}", "\n\n", raw)
-    # Remove lone page number lines like "1", "Page 2", "- 3 -"
     text = re.sub(r"(?m)^[\s\-]*(?:Page\s*)?\d+[\s\-]*$", "", text)
-    # Collapse multiple spaces to one
     text = re.sub(r"[ \t]{2,}", " ", text)
     return text.strip()
 
@@ -52,7 +49,6 @@ def _extract_document_date(text: str) -> str:
         if match:
             try:
                 raw_date = match.group(1)
-                # Try multiple parse formats
                 for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d-%m-%Y", "%B %d, %Y", "%B %d %Y"):
                     try:
                         dt = datetime.strptime(raw_date, fmt)
@@ -61,7 +57,6 @@ def _extract_document_date(text: str) -> str:
                         continue
             except Exception:
                 pass
-    # Fallback: current time
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -117,7 +112,6 @@ def parse(file_bytes: bytes, filename: str) -> Dict[str, Any]:
             "PDF may be scanned (image-only) without a text layer."
         )
 
-    # Truncate to stay within note_parser's context window
     if len(clean) > MAX_NOTE_CHARS:
         warnings.append(
             f"Note truncated from {len(clean)} to {MAX_NOTE_CHARS} chars "
@@ -128,7 +122,7 @@ def parse(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     timestamp = _extract_document_date(clean)
 
     logger.info(
-        "pdf_note_parser: parsed '%s' — %d pages, %d chars, timestamp=%s",
+        "pdf_note_parser: parsed '%s'  %d pages, %d chars, timestamp=%s",
         filename, page_count, len(clean), timestamp,
     )
 

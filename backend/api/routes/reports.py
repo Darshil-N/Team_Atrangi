@@ -1,5 +1,5 @@
 """
-api/routes/reports.py — Report retrieval and analysis trigger endpoints.
+api/routes/reports.py  Report retrieval and analysis trigger endpoints.
 """
 from __future__ import annotations
 
@@ -17,9 +17,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# ─────────────────────────────────────────────────────────
-# Request / response models (inline — small enough not to need models.py)
-# ─────────────────────────────────────────────────────────
 
 class AnalyseRequest(BaseModel):
     patient_id: str
@@ -31,25 +28,19 @@ class AnalyseResponse(BaseModel):
     message: str
 
 
-# ─────────────────────────────────────────────────────────
-# Background task wrapper
-# ─────────────────────────────────────────────────────────
 
 async def _run_pipeline_task(patient_id: str) -> None:
     """Async wrapper so FastAPI BackgroundTasks can schedule the pipeline."""
     try:
         report = await run_pipeline_queued(patient_id, reason="reports.analyse")
         logger.info(
-            "Background pipeline complete — patient=%s, report_id=%s",
+            "Background pipeline complete  patient=%s, report_id=%s",
             patient_id, report.get("_saved_report_id"),
         )
     except Exception as exc:
-        logger.error("Background pipeline failed — patient=%s: %s", patient_id, exc)
+        logger.error("Background pipeline failed  patient=%s: %s", patient_id, exc)
 
 
-# ─────────────────────────────────────────────────────────
-# Routes
-# ─────────────────────────────────────────────────────────
 
 @router.post("/analyse", response_model=AnalyseResponse)
 async def trigger_analysis(
@@ -58,7 +49,7 @@ async def trigger_analysis(
 ) -> AnalyseResponse:
     """
     Trigger the full agent pipeline for a patient.
-    The pipeline runs in the background — use GET /reports/{patient_id}/current
+    The pipeline runs in the background  use GET /reports/{patient_id}/current
     (or Supabase Realtime on the frontend) to retrieve the result.
     """
     patient_id = request.patient_id.strip()
@@ -67,7 +58,7 @@ async def trigger_analysis(
 
     background_tasks.add_task(_run_pipeline_task, patient_id)
 
-    logger.info("Analysis triggered — patient=%s", patient_id)
+    logger.info("Analysis triggered  patient=%s", patient_id)
     return AnalyseResponse(
         patient_id=patient_id,
         status="queued",

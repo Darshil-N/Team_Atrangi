@@ -1,5 +1,5 @@
 """
-vector_db/chroma_setup.py — ChromaDB initialisation helper.
+vector_db/chroma_setup.py  ChromaDB initialisation helper.
 
 Creates (or opens) the persistent ChromaDB collection for clinical guidelines.
 Run once before load_guidelines.py; safe to call repeatedly (idempotent).
@@ -13,9 +13,6 @@ from __future__ import annotations
 import logging
 import os
 
-# Fix for Windows: sentence-transformers tries to create symlinks in the
-# HuggingFace cache, which requires elevated permissions on Windows.
-# Setting this env var before import makes it use copies instead.
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 os.environ.setdefault("HUGGINGFACE_HUB_VERBOSITY", "warning")
 
@@ -33,12 +30,12 @@ def get_collection() -> chromadb.Collection:
 
     - Creates the persistent client at CHROMA_PERSIST_PATH if it doesn't exist.
     - Creates the collection if it doesn't exist.
-    - Reuses the existing collection if it does — completely idempotent.
+    - Reuses the existing collection if it does  completely idempotent.
 
     Embedding model: all-MiniLM-L6-v2
-        • 384-dim dense vectors
-        • ~80 MB download on first use (cached afterward)
-        • Fast on CPU — no GPU required for embedding
+         384-dim dense vectors
+         ~80 MB download on first use (cached afterward)
+         Fast on CPU  no GPU required for embedding
     """
     client = chromadb.PersistentClient(path=config.CHROMA_PERSIST_PATH)
 
@@ -46,7 +43,6 @@ def get_collection() -> chromadb.Collection:
         model_name="all-MiniLM-L6-v2"
     )
 
-    # get_or_create_collection is idempotent — safe to call multiple times
     collection = client.get_or_create_collection(
         name=config.CHROMA_COLLECTION_NAME,
         embedding_function=embedding_fn,
@@ -54,7 +50,7 @@ def get_collection() -> chromadb.Collection:
     )
 
     logger.info(
-        "ChromaDB collection '%s' ready at '%s' — %d document(s) indexed.",
+        "ChromaDB collection '%s' ready at '%s'  %d document(s) indexed.",
         config.CHROMA_COLLECTION_NAME,
         config.CHROMA_PERSIST_PATH,
         collection.count(),
@@ -66,4 +62,4 @@ def get_collection() -> chromadb.Collection:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     col = get_collection()
-    print(f"✅ ChromaDB ready. Collection '{col.name}' has {col.count()} documents.")
+    print(f" ChromaDB ready. Collection '{col.name}' has {col.count()} documents.")

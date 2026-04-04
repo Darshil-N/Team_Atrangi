@@ -1,15 +1,15 @@
 """
-agents/lab_mapper.py — Agent 2: Temporal Lab Trend Mapper + Outlier Detector.
+agents/lab_mapper.py  Agent 2: Temporal Lab Trend Mapper + Outlier Detector.
 
 Two-stage pipeline:
-  Stage A (Pandas/Scipy) — deterministic statistical analysis:
-    • Computes per-parameter trends (slope, % change) over the last 7 days
-    • Flags outliers where |value - rolling_mean| > 3 * rolling_std
-    • This stage NEVER uses an LLM — statistics are ground truth
+  Stage A (Pandas/Scipy)  deterministic statistical analysis:
+     Computes per-parameter trends (slope, % change) over the last 7 days
+     Flags outliers where |value - rolling_mean| > 3 * rolling_std
+     This stage NEVER uses an LLM  statistics are ground truth
 
-  Stage B (Ollama/phi3:mini) — narrative generation only:
-    • Converts the numeric trend summary into plain clinical language
-    • The LLM cannot override Stage A outlier flags — it only adds words
+  Stage B (Ollama/phi3:mini)  narrative generation only:
+     Converts the numeric trend summary into plain clinical language
+     The LLM cannot override Stage A outlier flags  it only adds words
 
 VRAM safety: same phi3:mini config as note_parser (num_ctx=4096, num_gpu=99).
 
@@ -37,9 +37,6 @@ from processing.state_builder import PatientState, TimelineEntry
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────
-# Output types
-# ─────────────────────────────────────────────────────────
 
 LabMapperOutput = Dict[str, Any]
 """
@@ -64,7 +61,6 @@ Shape returned by run():
 }
 """
 
-# Clinical reference ranges for common ICU parameters (used for outlier context)
 _REFERENCE_RANGES: Dict[str, Tuple[float, float, str]] = {
     "WBC":          (4.5,   11.0,  "K/uL"),
     "Lactate":      (0.5,   2.0,   "mmol/L"),
@@ -79,16 +75,11 @@ _REFERENCE_RANGES: Dict[str, Tuple[float, float, str]] = {
     "Bicarbonate":  (22.0,  29.0,  "mmol/L"),
 }
 
-# Outlier threshold: flag if |value - mean_prev_3| > OUTLIER_STD_THRESHOLD * std_prev_3
 OUTLIER_STD_THRESHOLD = 3.0
 
-# Minimum readings per parameter to compute a trend
 MIN_READINGS_FOR_TREND = 2
 
 
-# ─────────────────────────────────────────────────────────
-# Narrative generation prompt
-# ─────────────────────────────────────────────────────────
 
 _NARRATIVE_PROMPT = PromptTemplate(
     input_variables=["trend_summary", "outlier_summary"],
@@ -101,9 +92,9 @@ FLAGGED OUTLIERS:
 {outlier_summary}
 
 INSTRUCTIONS:
-- Return ONLY a valid JSON object — no markdown, no explanation, no extra text.
+- Return ONLY a valid JSON object  no markdown, no explanation, no extra text.
 - Keep the narrative under 150 words.
-- Do NOT change or reinterpret the outlier flags — just mention them as flagged.
+- Do NOT change or reinterpret the outlier flags  just mention them as flagged.
 
 REQUIRED OUTPUT FORMAT:
 {{
@@ -112,9 +103,6 @@ REQUIRED OUTPUT FORMAT:
 )
 
 
-# ─────────────────────────────────────────────────────────
-# Stage A: Statistical analysis (pure Pandas/Numpy)
-# ─────────────────────────────────────────────────────────
 
 def _extract_lab_series(lab_entries: List[TimelineEntry]) -> Dict[str, pd.Series]:
     """
@@ -134,7 +122,6 @@ def _extract_lab_series(lab_entries: List[TimelineEntry]) -> Dict[str, pd.Series
         row: Dict[str, Any] = {"timestamp": ts}
         for key, val in data.items():
             if key == "values" and isinstance(val, dict):
-                # Nested format: {"values": {"WBC": {"value": 15.2}, ...}}
                 for param, param_data in val.items():
                     if isinstance(param_data, dict):
                         row[param] = param_data.get("value")
@@ -154,7 +141,6 @@ def _extract_lab_series(lab_entries: List[TimelineEntry]) -> Dict[str, pd.Series
     df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
     df = df.sort_values("timestamp").set_index("timestamp")
 
-    # Build per-parameter Series, dropping non-numeric columns
     series_map: Dict[str, pd.Series] = {}
     for col in df.columns:
         s = pd.to_numeric(df[col], errors="coerce").dropna()
@@ -177,7 +163,6 @@ def _compute_trend(series: pd.Series) -> Dict[str, Any]:
     values = series.values.astype(float)
     n = len(values)
 
-    # Convert index to day-offset floats for polyfit
     if hasattr(series.index, "astype"):
         try:
             days = (
@@ -231,9 +216,7 @@ def _detect_outlier(
     mean_hist = float(history.mean())
     std_hist  = float(history.std(ddof=0))   # population std (ddof=0)
 
-    # Avoid division-by-zero for perfectly constant history
     if std_hist == 0:
-        # If history is perfectly constant and new value differs, flag it
         if abs(latest_val - mean_hist) > 0.01:
             n_std = float("inf")
         else:
@@ -242,17 +225,15 @@ def _detect_outlier(
         n_std = abs(latest_val - mean_hist) / std_hist
 
     if n_std < OUTLIER_STD_THRESHOLD:
-        return None  # Normal variation — not an outlier
+        return None  # Normal variation  not an outlier
 
-    # Build the outlier record
     ref = _REFERENCE_RANGES.get(param)
     if ref:
         lo, hi, unit = ref
         expected_range = f"{lo}-{hi} {unit}".strip()
     else:
-        expected_range = f"within {mean_hist:.2f} ± {std_hist:.2f} (historical)"
+        expected_range = f"within {mean_hist:.2f}  {std_hist:.2f} (historical)"
 
-    # Classify probability for the chief agent
     if n_std == float("inf") or n_std > 9:
         probability = "impossible"
     elif n_std > 6:
@@ -288,22 +269,18 @@ def _run_statistical_analysis(
         if len(series) >= MIN_READINGS_FOR_TREND:
             trends[param] = _compute_trend(series)
 
-        # Always check for outliers even with just 2 data points
         if len(series) >= 2:
             outlier = _detect_outlier(param, series)
             if outlier:
                 outliers.append(outlier)
                 logger.warning(
-                    "lab_mapper: OUTLIER DETECTED — %s = %s (%s)",
+                    "lab_mapper: OUTLIER DETECTED  %s = %s (%s)",
                     param, outlier["value"], outlier["statistical_deviation"],
                 )
 
     return trends, outliers
 
 
-# ─────────────────────────────────────────────────────────
-# Stage B: Narrative generation (Ollama)
-# ─────────────────────────────────────────────────────────
 
 def _build_trend_summary(trends: Dict[str, Dict]) -> str:
     """Convert the numeric trends dict into a compact string for the prompt."""
@@ -327,7 +304,7 @@ def _build_outlier_summary(outliers: List[Dict]) -> str:
     for o in outliers:
         lines.append(
             f"  {o['parameter']}: {o['value']} (expected {o['expected_range']}) "
-            f"— {o['statistical_deviation']}, probability: {o['probability']}"
+            f" {o['statistical_deviation']}, probability: {o['probability']}"
         )
     return "\n".join(lines)
 
@@ -339,7 +316,7 @@ def _generate_narrative(
 ) -> str:
     """
     Stage B: Ask phi3:mini to write a brief clinical interpretation.
-    The LLM receives the computed stats — it cannot change the outlier flags.
+    The LLM receives the computed stats  it cannot change the outlier flags.
     """
     trend_summary   = _build_trend_summary(trends)
     outlier_summary = _build_outlier_summary(outliers)
@@ -355,12 +332,9 @@ def _generate_narrative(
         return parsed.get("narrative", trend_summary)   # fallback to raw summary
     except Exception as exc:
         logger.warning("lab_mapper: narrative generation failed: %s", exc)
-        return trend_summary   # non-fatal — return the numeric summary instead
+        return trend_summary   # non-fatal  return the numeric summary instead
 
 
-# ─────────────────────────────────────────────────────────
-# Public entry point (called by orchestrator)
-# ─────────────────────────────────────────────────────────
 
 async def run(state: PatientState) -> LabMapperOutput:
     """
@@ -376,7 +350,7 @@ async def run(state: PatientState) -> LabMapperOutput:
     patient_id: str = state.get("patient_id", "unknown")
 
     logger.info(
-        "lab_mapper: starting — patient=%s, lab_entries=%d",
+        "lab_mapper: starting  patient=%s, lab_entries=%d",
         patient_id, len(lab_entries),
     )
 
@@ -391,7 +365,6 @@ async def run(state: PatientState) -> LabMapperOutput:
 
     warnings: List[str] = []
 
-    # ── Stage A: Statistical analysis (deterministic, no LLM) ──
     try:
         trends, outliers = _run_statistical_analysis(lab_entries)
     except Exception as exc:
@@ -401,11 +374,10 @@ async def run(state: PatientState) -> LabMapperOutput:
         trends, outliers = {}, []
 
     logger.info(
-        "lab_mapper: Stage A done — %d trends, %d outlier(s)",
+        "lab_mapper: Stage A done  %d trends, %d outlier(s)",
         len(trends), len(outliers),
     )
 
-    # ── Stage B: Narrative generation (Ollama) ──
     try:
         llm = get_llm()
         narrative = _generate_narrative(trends, outliers, llm)
@@ -415,7 +387,7 @@ async def run(state: PatientState) -> LabMapperOutput:
         warnings.append(msg)
         narrative = _build_trend_summary(trends)   # non-fatal fallback
 
-    logger.info("lab_mapper: done — patient=%s", patient_id)
+    logger.info("lab_mapper: done  patient=%s", patient_id)
 
     return {
         "trends":   trends,

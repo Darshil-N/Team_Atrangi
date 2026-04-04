@@ -1,11 +1,11 @@
 """
-agents/orchestrator.py — Pipeline coordinator for all four agents.
+agents/orchestrator.py  Pipeline coordinator for all four agents.
 
 Execution order:
   1. Build unified patient state from parsed_data (state_builder)
-  2. Run agents 1–3 IN PARALLEL (note_parser, lab_mapper, rag_agent)
-     → asyncio.gather cuts total latency by ~3x vs sequential
-  3. Run agent 4 (chief_agent) — waits for 1–3 to finish
+  2. Run agents 13 IN PARALLEL (note_parser, lab_mapper, rag_agent)
+      asyncio.gather cuts total latency by ~3x vs sequential
+  3. Run agent 4 (chief_agent)  waits for 13 to finish
   4. Save the final report to Supabase
 
 Usage (called from FastAPI background task):
@@ -33,9 +33,6 @@ _pending_runs: set[str] = set()
 _run_state_lock = asyncio.Lock()
 
 
-# ─────────────────────────────────────────────────────────
-# Main pipeline
-# ─────────────────────────────────────────────────────────
 
 async def run_pipeline(patient_id: str) -> Dict[str, Any]:
     """
@@ -53,9 +50,8 @@ async def run_pipeline(patient_id: str) -> Dict[str, Any]:
     if not patient_id:
         raise ValueError("patient_id must not be empty.")
 
-    logger.info("orchestrator: ═══ PIPELINE START — patient=%s ═══", patient_id)
+    logger.info("orchestrator:  PIPELINE START  patient=%s ", patient_id)
 
-    # ── Step 1: Build state ────────────────────────────────
     logger.info("orchestrator: [1/4] Building patient state...")
     state = build_state(patient_id)
 
@@ -65,32 +61,26 @@ async def run_pipeline(patient_id: str) -> Dict[str, Any]:
             "Upload and process clinical files first."
         )
 
-    logger.info("orchestrator: State ready — %s", summarise_state(state))
+    logger.info("orchestrator: State ready  %s", summarise_state(state))
 
-    # ── Step 2: Fetch previous report (for recursive RAG) ──
     logger.info("orchestrator: [2/4] Fetching previous report...")
     prev_report: Optional[Dict[str, Any]] = None
     try:
         prev_report = get_current_report(patient_id)
         if prev_report:
             logger.info(
-                "orchestrator: Previous report found — v%d",
+                "orchestrator: Previous report found  v%d",
                 prev_report.get("report_version", "?"),
             )
         else:
-            logger.info("orchestrator: No previous report — this is first assessment.")
+            logger.info("orchestrator: No previous report  this is first assessment.")
     except Exception as exc:
         logger.warning("orchestrator: Could not fetch previous report: %s", exc)
 
-    # ── Step 3: Run agents 1–3 in parallel ────────────────
     logger.info(
         "orchestrator: [3/4] Running note_parser, lab_mapper, rag_agent in parallel..."
     )
 
-    # We need rag_agent to receive note_parser + lab_mapper outputs,
-    # but can't do that strictly in parallel. Strategy:
-    #   a) Run note_parser and lab_mapper in parallel.
-    #   b) Then run rag_agent with their outputs (still fast — no LLM).
     symptoms_output, lab_output = await asyncio.gather(
         note_parser.run(state),
         lab_mapper.run(state),
@@ -99,7 +89,7 @@ async def run_pipeline(patient_id: str) -> Dict[str, Any]:
     rag_output = await rag_agent.run(state, symptoms_output, lab_output)
 
     logger.info(
-        "orchestrator: Agent outputs — "
+        "orchestrator: Agent outputs  "
         "symptoms=%d, trends=%d, outliers=%d, guidelines=%d",
         len(symptoms_output.get("symptoms", [])),
         len(lab_output.get("trends", {})),
@@ -107,7 +97,6 @@ async def run_pipeline(patient_id: str) -> Dict[str, Any]:
         len(rag_output.get("guidelines", [])),
     )
 
-    # ── Step 4: Chief synthesis ────────────────────────────
     logger.info("orchestrator: [4/4] Running chief synthesis agent (Gemini)...")
     report = await chief_agent.run(
         state,
@@ -117,7 +106,6 @@ async def run_pipeline(patient_id: str) -> Dict[str, Any]:
         prev_report,
     )
 
-    # ── Step 5: Persist report ─────────────────────────────
     logger.info("orchestrator: Saving report to Supabase...")
     try:
         saved = save_report(
@@ -131,7 +119,7 @@ async def run_pipeline(patient_id: str) -> Dict[str, Any]:
         )
         report["_saved_report_id"] = saved.get("id")
         logger.info(
-            "orchestrator: Report saved — id=%s, version=%s",
+            "orchestrator: Report saved  id=%s, version=%s",
             saved.get("id"), saved.get("report_version"),
         )
     except Exception as exc:
@@ -141,7 +129,7 @@ async def run_pipeline(patient_id: str) -> Dict[str, Any]:
         )
         report["_save_error"] = str(exc)
 
-    logger.info("orchestrator: ═══ PIPELINE COMPLETE — patient=%s ═══", patient_id)
+    logger.info("orchestrator:  PIPELINE COMPLETE  patient=%s ", patient_id)
     return report
 
 
@@ -161,7 +149,7 @@ async def run_pipeline_queued(patient_id: str, reason: str = "manual") -> Dict[s
         if patient_id in _active_runs:
             _pending_runs.add(patient_id)
             logger.info(
-                "orchestrator: queued rerun — patient=%s, reason=%s",
+                "orchestrator: queued rerun  patient=%s, reason=%s",
                 patient_id,
                 reason,
             )
@@ -185,15 +173,12 @@ async def run_pipeline_queued(patient_id: str, reason: str = "manual") -> Dict[s
             if not should_rerun:
                 return result
 
-            logger.info("orchestrator: executing queued rerun — patient=%s", patient_id)
+            logger.info("orchestrator: executing queued rerun  patient=%s", patient_id)
     finally:
         async with _run_state_lock:
             _active_runs.discard(patient_id)
 
 
-# ─────────────────────────────────────────────────────────
-# Standalone runner (for quick testing from CLI)
-# ─────────────────────────────────────────────────────────
 
 async def _main(patient_id: str) -> None:
     """Run the pipeline and pretty-print the result."""
@@ -204,12 +189,12 @@ async def _main(patient_id: str) -> None:
     )
     try:
         report = await run_pipeline(patient_id)
-        print("\n" + "═" * 60)
+        print("\n" + "" * 60)
         print("FINAL REPORT")
-        print("═" * 60)
+        print("" * 60)
         print(json.dumps(report, indent=2, default=str))
     except Exception as exc:
-        print(f"\n❌ Pipeline failed: {exc}")
+        print(f"\n Pipeline failed: {exc}")
         raise
 
 

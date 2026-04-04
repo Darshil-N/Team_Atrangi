@@ -22,6 +22,7 @@ import html2pdf from "html2pdf.js";
 
 const SESSION_KEY = "hc01-pin-session";
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+const LOGO_SRC = "/Logo.jpeg";
 
 function getPublicBaseUrl() {
   const fromEnv = String(import.meta.env.VITE_PUBLIC_APP_URL || "").trim();
@@ -74,11 +75,8 @@ function getTrend(report) {
   
   if (timeline.length === 0) return [];
 
-  // Sort timeline chronologically if dates exist
   const sorted = [...timeline].sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
   
-  // Use the latest date from the actual patient data as our "end" point for the 24h window
-  // If dates are somehow missing or invalid, fallback to current time
   const latestDateStr = sorted[sorted.length - 1].date;
   const end = latestDateStr ? new Date(latestDateStr) : new Date();
   const start = new Date(end.getTime() - 24 * 60 * 60 * 1000); // 24 hours prior to the latest data point
@@ -88,14 +86,11 @@ function getTrend(report) {
     const slotTime = new Date(start.getTime() + i * 60 * 60 * 1000);
     const hourLabel = slotTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
-    // Forward fill logic: find the latest timeline entry that occurred on or before this hour slot
     const pastEntries = sorted.filter(row => {
       if (!row.date) return false;
       return new Date(row.date).getTime() <= slotTime.getTime() + (60 * 60 * 1000); // Allow up to end of slot
     });
     
-    // If we have past entries, use the latest one. Otherwise, fallback to the very first entry of the patient
-    // to backward-fill so that we draw a solid baseline even before the exact first timestamp.
     const match = pastEntries.length > 0 ? pastEntries[pastEntries.length - 1] : (sorted[0] || {});
 
     const labs = match.labs || {};
@@ -106,10 +101,8 @@ function getTrend(report) {
     const rawSpo2 = parseFloat(getVal(labs, ["SpO2", "spo2", "spo2_percent"]) || getVal(vitals, ["SpO2", "spo2", "spo2_percent"]));
     const rawFio2 = parseFloat(getVal(labs, ["FiO2", "fio2"]));
 
-    // Add deterministic micro-fluctuations based on the hour index so the line looks organically alive
     const jitter = (val, variance, index) => {
       if (isNaN(val)) return null;
-      // pseudo-random oscillation between -variance and +variance
       const noise = Math.sin(index * 1.5 + (val % 10)) * variance; 
       return Number((val + noise).toFixed(1));
     };
@@ -506,7 +499,8 @@ function TopBar({ role, authUser }) {
   return (
     <header className="st-topbar">
       <div className="st-brand-wrap">
-        <span className="st-brand">Clinical Assistant</span>
+        <img src={LOGO_SRC} alt="Sanjeevani" className="st-brand-logo" />
+        <span className="st-brand">Sanjeevani</span>
         <span className="st-divider" />
         <nav className="st-tab-row">
           {nav.map((item) => (
@@ -607,10 +601,10 @@ function Shell({ role, onLogout, authUser, children }) {
       <SideBar onLogout={onLogout} authUser={authUser} role={role} />
       <main className="st-main">{children}</main>
       <footer className="st-footer">
-        <span>HIPAA COMPLIANT</span>
+        <span>SECURITY CONTROLS ENABLED</span>
         <span>SYSTEM STATUS: 12MS</span>
         <span>SUPPORT</span>
-        <span>© 2024 CLINICAL ASSISTANT. PRECISION GRADE AI.</span>
+        <span>(c) 2024 SANJEEVANI. PRECISION GRADE AI.</span>
       </footer>
     </div>
   );
@@ -798,7 +792,7 @@ function FinalReportView({ report, patientName }) {
         <div>
           <p className="eyebrow">Chief AI Synthesis</p>
           <h3>Final Clinical Report</h3>
-          <p className="muted">Patient: {patientName || "Unknown"} • Version {report.report_version || 1}</p>
+          <p className="muted">Patient: {patientName || "Unknown"} - Version {report.report_version || 1}</p>
         </div>
         <div className={`diag-pill ${report?.diagnosis_updated ? "ok" : "hold"}`}>
           {report?.diagnosis_updated ? "Diagnosis Updated" : "Diagnosis Held Pending Verification"}
@@ -837,7 +831,7 @@ function FinalReportView({ report, patientName }) {
                 <div className="citation-row">
                   {(Array.isArray(flag.guideline_citations) ? flag.guideline_citations : []).map((cite, cIndex) => (
                     <span key={`${cite.source || "citation"}-${cIndex}`} className="cite-chip">
-                      {cite.source || "Guideline"} • conf {(Number(cite.confidence || 0) * 100).toFixed(0)}%
+                      {cite.source || "Guideline"}  conf {(Number(cite.confidence || 0) * 100).toFixed(0)}%
                     </span>
                   ))}
                 </div>
@@ -927,7 +921,7 @@ function FamilyCommunicationView({ report, patientName }) {
         <div>
           <p className="eyebrow">Family Communication</p>
           <h3>Last 12 Hours Summary</h3>
-          <p className="muted">Patient: {patientName || "Unknown"} • Version {report?.report_version || 1}</p>
+          <p className="muted">Patient: {patientName || "Unknown"} - Version {report?.report_version || 1}</p>
         </div>
       </div>
 
@@ -955,7 +949,10 @@ function LandingPage() {
     <div className="landing-bg">
       <section className="landing-shell">
         <div className="landing-left">
-          <p className="eyebrow">HC01 Agentic ICU Intelligence</p>
+          <div className="hero-brand">
+            <img src={LOGO_SRC} alt="Sanjeevani" className="hero-logo" />
+            <p className="eyebrow">HC01 Agentic ICU Intelligence</p>
+          </div>
           <h1>Early-risk diagnosis with multi-agent safety controls.</h1>
           <p>
             HC01 combines ingestion, timeline reasoning, RAG guideline citations, and chief-agent synthesis to support
@@ -1013,6 +1010,9 @@ function PinLoginPage({ onLogin }) {
   return (
     <div className="login-bg">
       <div className="login-card">
+        <div className="login-brand">
+          <img src={LOGO_SRC} alt="Sanjeevani" className="login-logo" />
+        </div>
         <p className="eyebrow">HC01 Secure PIN Access</p>
         <h1>Role-based Login</h1>
         <p className="sub">Patient uses 4-digit PIN, Doctor and Entry Staff use 6-digit PIN.</p>
@@ -1454,7 +1454,6 @@ function StaffPortal({ onLogout, authUser }) {
         });
         successCount += 1;
       } catch {
-        // Continue and report aggregate result.
       }
     }
 
@@ -1464,7 +1463,6 @@ function StaffPortal({ onLogout, authUser }) {
       try {
         await triggerAnalysis(selected);
 
-        // Poll until current report appears or timeout is reached.
         let generated = null;
         const maxAttempts = 20;
         for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
@@ -1709,7 +1707,7 @@ function PatientPortal({ onLogout, authUser }) {
     <Shell role="patient" onLogout={onLogout} authUser={authUser}>
       <div className="st-page-header">
         <div>
-          <p className="eyebrow">Surgical Unit 4B • Trauma Level 1</p>
+          <p className="eyebrow">Surgical Unit 4B  Trauma Level 1</p>
           <h1>Patient Diagnostic Overview</h1>
         </div>
         <div className="btn-row">

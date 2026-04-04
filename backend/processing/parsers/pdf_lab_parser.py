@@ -1,5 +1,5 @@
 """
-processing/parsers/pdf_lab_parser.py — Extract structured lab values from PDF lab reports.
+processing/parsers/pdf_lab_parser.py  Extract structured lab values from PDF lab reports.
 
 Two-strategy approach:
   Strategy A: pdfplumber table extraction (works for digitally-generated lab PDFs)
@@ -15,11 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────────────────
-# Known lab parameters + regex to match them in text
-# ─────────────────────────────────────────────────────────
 
-# Each tuple: (canonical_name, [aliases], default_unit)
 _LAB_PARAMS: List[Tuple[str, List[str], str]] = [
     ("WBC",          ["WBC", "White Blood Cell", "Leukocyte"],             "K/uL"),
     ("Hemoglobin",   ["Hemoglobin", "Haemoglobin", "Hgb", "Hb"],          "g/dL"),
@@ -42,13 +38,10 @@ _LAB_PARAMS: List[Tuple[str, List[str], str]] = [
     ("FiO2",         ["FiO2", "Fraction Inspired O2"],                    "%"),
 ]
 
-# Build a compiled regex: "PARAM_NAME  <whitespace/punct>  VALUE  UNIT?"
-# Example match: "WBC    15.2    K/uL    4.5-11.0   H"
 _LAB_PATTERNS: List[Tuple[str, str, re.Pattern]] = []
 
 for canonical, aliases, default_unit in _LAB_PARAMS:
     alias_pattern = "|".join(re.escape(a) if "\\" not in a else a for a in aliases)
-    # Pattern: param_name [whitespace/colon/pipe] numeric_value [optional unit]
     pattern = re.compile(
         rf"(?:{alias_pattern})\s*[:\|]?\s*([\d]+\.?[\d]*)\s*({re.escape(default_unit)}|[a-zA-Z/%]+)?",
         re.IGNORECASE,
@@ -56,9 +49,6 @@ for canonical, aliases, default_unit in _LAB_PARAMS:
     _LAB_PATTERNS.append((canonical, default_unit, pattern))
 
 
-# ─────────────────────────────────────────────────────────
-# Date extraction (reused from pdf_note_parser logic)
-# ─────────────────────────────────────────────────────────
 
 def _extract_date(text: str) -> str:
     patterns = [
@@ -78,9 +68,6 @@ def _extract_date(text: str) -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# ─────────────────────────────────────────────────────────
-# Strategy A: table extraction
-# ─────────────────────────────────────────────────────────
 
 def _parse_tables(pdf) -> Optional[Dict[str, Dict]]:
     """
@@ -99,7 +86,6 @@ def _parse_tables(pdf) -> Optional[Dict[str, Dict]]:
         for table in tables:
             if not table or len(table) < 2:
                 continue
-            # Try to find which column is "name", "value", "unit"
             header = [str(c).lower().strip() if c else "" for c in table[0]]
             name_col = val_col = unit_col = None
             for i, h in enumerate(header):
@@ -111,7 +97,6 @@ def _parse_tables(pdf) -> Optional[Dict[str, Dict]]:
                     unit_col = i
 
             if name_col is None or val_col is None:
-                # fallback: assume col 0=name, col 1=value, col 2=unit
                 name_col, val_col = 0, 1
                 unit_col = 2 if len(table[0]) > 2 else None
 
@@ -121,7 +106,6 @@ def _parse_tables(pdf) -> Optional[Dict[str, Dict]]:
                     val_raw  = str(row[val_col]  or "").strip()
                     unit_raw = str(row[unit_col] or "").strip() if unit_col and unit_col < len(row) else ""
 
-                    # Try to match name to known parameter
                     canonical = None
                     for c, aliases, default_unit in _LAB_PARAMS:
                         if any(a.lower() in name_raw.lower() for a in aliases):
@@ -132,7 +116,6 @@ def _parse_tables(pdf) -> Optional[Dict[str, Dict]]:
                     if not canonical:
                         continue
 
-                    # Extract numeric value
                     num_match = re.search(r"([\d]+\.?[\d]*)", val_raw)
                     if not num_match:
                         continue
@@ -144,9 +127,6 @@ def _parse_tables(pdf) -> Optional[Dict[str, Dict]]:
     return values if values else None
 
 
-# ─────────────────────────────────────────────────────────
-# Strategy B: regex text scan
-# ─────────────────────────────────────────────────────────
 
 def _parse_regex(text: str) -> Dict[str, Dict]:
     """Scan raw text for lab value patterns using compiled regex."""
@@ -163,9 +143,6 @@ def _parse_regex(text: str) -> Dict[str, Dict]:
     return values
 
 
-# ─────────────────────────────────────────────────────────
-# Public entry point
-# ─────────────────────────────────────────────────────────
 
 def parse(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     """
@@ -182,13 +159,11 @@ def parse(file_bytes: bytes, filename: str) -> Dict[str, Any]:
         import pdfplumber
 
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-            # Strategy A: tables
             table_values = _parse_tables(pdf)
             if table_values:
                 values = table_values
                 strategy_used = "table_extraction"
 
-            # Extract raw text for date detection + Strategy B fallback
             text_parts = []
             for page in pdf.pages:
                 t = page.extract_text(x_tolerance=2, y_tolerance=2)
@@ -196,7 +171,6 @@ def parse(file_bytes: bytes, filename: str) -> Dict[str, Any]:
                     text_parts.append(t)
             raw_text = "\n".join(text_parts)
 
-        # Strategy B fallback
         if not values and raw_text:
             values = _parse_regex(raw_text)
             strategy_used = "regex_scan" if values else "none"
@@ -213,7 +187,7 @@ def parse(file_bytes: bytes, filename: str) -> Dict[str, Any]:
     timestamp = _extract_date(raw_text) if raw_text else datetime.now(timezone.utc).isoformat()
 
     logger.info(
-        "pdf_lab_parser: '%s' — strategy=%s, %d parameters extracted",
+        "pdf_lab_parser: '%s'  strategy=%s, %d parameters extracted",
         filename, strategy_used, len(values),
     )
 

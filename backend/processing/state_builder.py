@@ -1,5 +1,5 @@
 """
-processing/state_builder.py — Assembles the unified patient state dict.
+processing/state_builder.py  Assembles the unified patient state dict.
 
 This is the single source of truth fed into all agents. It queries Supabase
 for all parsed_data rows of a patient and organises them into a sorted
@@ -16,20 +16,12 @@ from typing import Any, Dict, List
 from database.supabase_client import get_parsed_data
 
 
-# ─────────────────────────────────────────────────────────
-# Types
-# ─────────────────────────────────────────────────────────
 
-# A single timeline entry — one parsed row from the DB
 TimelineEntry = Dict[str, Any]
 
-# The full state object passed to every agent
 PatientState = Dict[str, Any]
 
 
-# ─────────────────────────────────────────────────────────
-# Main builder
-# ─────────────────────────────────────────────────────────
 
 def build_state(patient_id: str) -> PatientState:
     """
@@ -47,9 +39,9 @@ def build_state(patient_id: str) -> PatientState:
             },
             ...
         ],
-        "notes":  [...],   # filtered subset — type == "note"
-        "labs":   [...],   # filtered subset — type == "lab"
-        "vitals": [...],   # filtered subset — type == "vital"
+        "notes":  [...],   # filtered subset  type == "note"
+        "labs":   [...],   # filtered subset  type == "lab"
+        "vitals": [...],   # filtered subset  type == "vital"
         "total_entries": int,
     }
 
@@ -60,10 +52,8 @@ def build_state(patient_id: str) -> PatientState:
     if not patient_id:
         raise ValueError("patient_id must not be empty.")
 
-    # Fetch all parsed rows, already ordered by timestamp ASC in the query
     rows: List[Dict[str, Any]] = get_parsed_data(patient_id)
 
-    # Build the unified timeline
     timeline: List[TimelineEntry] = []
     notes:    List[TimelineEntry] = []
     labs:     List[TimelineEntry] = []
@@ -97,9 +87,6 @@ def build_state(patient_id: str) -> PatientState:
     return state
 
 
-# ─────────────────────────────────────────────────────────
-# Utility helpers (used by agents to slice the timeline)
-# ─────────────────────────────────────────────────────────
 
 def get_last_n_lab_entries(state: PatientState, n: int = 7) -> List[TimelineEntry]:
     """

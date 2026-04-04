@@ -1,4 +1,8 @@
-# HC01 Frontend Portal UI
+<p align="center">
+  <img src="../Logo.jpeg" alt="Sanjeevani Logo" width="140"/>
+</p>
+
+# Sanjeevani HC01 Frontend Portal UI
 
 React + Vite portal suite for the HC01 ICU platform.
 

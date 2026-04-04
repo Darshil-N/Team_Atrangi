@@ -45,7 +45,6 @@ async function writeAudit(entry) {
   try {
     await supabase.from(AUDIT_TABLE).insert(entry);
   } catch {
-    // Do not block auth flow on audit logging failures.
   }
 }
 
@@ -73,8 +72,6 @@ export async function signInWithPin({ role, identifier, pin, actorIp = null }) {
 
   let lookup = await fetchCredential(normalizedIdentifier);
 
-  // Patient convenience fallback: if user typed MRN but credential was stored by UUID,
-  // or typed UUID but credential exists by MRN, resolve through patients table.
   if ((!lookup.data || lookup.error) && normalizedRole === "patient") {
     const bySubject = await supabase
       .from("patients")

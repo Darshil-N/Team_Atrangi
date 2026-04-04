@@ -1,13 +1,13 @@
 """
-agents/note_parser.py — Agent 1: Clinical Note Symptom Extractor.
+agents/note_parser.py  Agent 1: Clinical Note Symptom Extractor.
 
 Uses Ollama (phi3:mini) to parse unstructured clinical notes and extract
-structured symptom data. Runs locally — no cloud API call needed.
+structured symptom data. Runs locally  no cloud API call needed.
 
 VRAM safety:
-  - num_ctx=4096  → caps KV cache; prevents overflow on 6GB RTX 3050
-  - num_gpu=99    → all layers on GPU, zero RAM offload
-  - temperature=0 → deterministic JSON output every time
+  - num_ctx=4096   caps KV cache; prevents overflow on 6GB RTX 3050
+  - num_gpu=99     all layers on GPU, zero RAM offload
+  - temperature=0  deterministic JSON output every time
 
 Usage:
     from agents.note_parser import run
@@ -29,9 +29,6 @@ from processing.state_builder import PatientState, TimelineEntry
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────
-# Output type
-# ─────────────────────────────────────────────────────────
 
 NoteParserOutput = Dict[str, Any]
 """
@@ -51,9 +48,6 @@ Shape returned by run():
 """
 
 
-# ─────────────────────────────────────────────────────────
-# Prompt template
-# ─────────────────────────────────────────────────────────
 
 _PROMPT_TEMPLATE = PromptTemplate(
     input_variables=["note_text", "note_timestamp"],
@@ -63,7 +57,7 @@ CLINICAL NOTE (recorded at {note_timestamp}):
 {note_text}
 
 INSTRUCTIONS:
-- Return ONLY a valid JSON object — no markdown, no explanation, no extra text.
+- Return ONLY a valid JSON object  no markdown, no explanation, no extra text.
 - If no symptoms are mentioned, return an empty symptoms array.
 - Use only the keys shown below.
 
@@ -80,21 +74,18 @@ REQUIRED OUTPUT FORMAT:
 )
 
 
-# ─────────────────────────────────────────────────────────
-# LLM singleton (initialised once per process)
-# ─────────────────────────────────────────────────────────
 
 def _build_llm() -> OllamaLLM:
     """
     Build the Ollama LLM instance with VRAM-safe parameters.
-    Called once and reused — model stays loaded in GPU memory between calls.
+    Called once and reused  model stays loaded in GPU memory between calls.
     """
     return OllamaLLM(
         base_url=config.OLLAMA_HOST,
         model=config.OLLAMA_MODEL,
-        num_ctx=config.OLLAMA_NUM_CTX,     # caps KV cache → stays within 6GB VRAM
+        num_ctx=config.OLLAMA_NUM_CTX,     # caps KV cache  stays within 6GB VRAM
         num_gpu=config.OLLAMA_NUM_GPU,     # all layers on GPU, no RAM spill
-        temperature=0.0,                   # deterministic — structured output must be stable
+        temperature=0.0,                   # deterministic  structured output must be stable
         format="json",                     # Ollama-native JSON mode for phi3:mini
     )
 
@@ -110,9 +101,6 @@ def get_llm() -> OllamaLLM:
     return _llm
 
 
-# ─────────────────────────────────────────────────────────
-# JSON extraction helpers
-# ─────────────────────────────────────────────────────────
 
 def _extract_json(raw: str) -> Dict[str, Any]:
     """
@@ -124,19 +112,16 @@ def _extract_json(raw: str) -> Dict[str, Any]:
       - Fenced JSON  : ```json\n{...}\n```
       - Partial JSON : finds first { ... } block
     """
-    # Strip markdown code fences if present
     raw = raw.strip()
     raw = re.sub(r"^```(?:json)?\s*", "", raw)
     raw = re.sub(r"\s*```$", "", raw)
     raw = raw.strip()
 
-    # Try direct parse first
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
 
-    # Fallback: extract first {...} block
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if match:
         try:
@@ -144,14 +129,10 @@ def _extract_json(raw: str) -> Dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    # Nothing worked — return an empty result rather than crashing
     logger.warning("note_parser: could not parse JSON from model output: %s", raw[:200])
     return {"symptoms": []}
 
 
-# ─────────────────────────────────────────────────────────
-# Per-note processing
-# ─────────────────────────────────────────────────────────
 
 def _process_one_note(entry: TimelineEntry, llm: OllamaLLM) -> List[Dict[str, Any]]:
     """
@@ -161,11 +142,9 @@ def _process_one_note(entry: TimelineEntry, llm: OllamaLLM) -> List[Dict[str, An
     note_text = ""
     data = entry.get("data", {})
 
-    # Handle both raw text and structured dict payloads
     if isinstance(data, str):
         note_text = data
     elif isinstance(data, dict):
-        # Try common field names from the parsing pipeline
         note_text = (
             data.get("text")
             or data.get("content")
@@ -178,8 +157,6 @@ def _process_one_note(entry: TimelineEntry, llm: OllamaLLM) -> List[Dict[str, An
         logger.debug("note_parser: skipping empty note entry at %s", entry.get("timestamp"))
         return []
 
-    # Truncate to stay within num_ctx — phi3:mini tokenises ~4 chars/token
-    # 4096 ctx - ~200 prompt overhead = ~3896 tokens ≈ 15 000 chars for note
     max_chars = 15_000
     if len(note_text) > max_chars:
         logger.warning(
@@ -198,9 +175,6 @@ def _process_one_note(entry: TimelineEntry, llm: OllamaLLM) -> List[Dict[str, An
     return parsed.get("symptoms", [])
 
 
-# ─────────────────────────────────────────────────────────
-# Public entry point (called by orchestrator)
-# ─────────────────────────────────────────────────────────
 
 async def run(state: PatientState) -> NoteParserOutput:
     """
@@ -219,7 +193,7 @@ async def run(state: PatientState) -> NoteParserOutput:
     patient_id: str = state.get("patient_id", "unknown")
 
     logger.info(
-        "note_parser: starting — patient=%s, notes=%d",
+        "note_parser: starting  patient=%s, notes=%d",
         patient_id, len(notes),
     )
 
@@ -240,17 +214,16 @@ async def run(state: PatientState) -> NoteParserOutput:
             symptoms = _process_one_note(entry, llm)
             all_symptoms.extend(symptoms)
             logger.debug(
-                "note_parser: note %d/%d → %d symptom(s)",
+                "note_parser: note %d/%d  %d symptom(s)",
                 i + 1, len(notes), len(symptoms),
             )
         except Exception as exc:
             msg = f"note_parser: failed on note {i+1} at {entry.get('timestamp')}: {exc}"
             logger.warning(msg)
             warnings.append(msg)
-            # Continue processing remaining notes — one failure is not fatal
 
     logger.info(
-        "note_parser: done — patient=%s, total_symptoms=%d, warnings=%d",
+        "note_parser: done  patient=%s, total_symptoms=%d, warnings=%d",
         patient_id, len(all_symptoms), len(warnings),
     )
 

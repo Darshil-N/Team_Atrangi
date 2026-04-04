@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────
-# HC01 Saanjivani — .gitignore
+# HC01 Sanjeevani — .gitignore
 # ─────────────────────────────────────────────────────────
 
 # ── Secrets & Environment ────────────────────────────────
@@ -64,12 +64,6 @@ backend/.cache/
 *.ipynb
 
 # ── Test & debug artefacts ───────────────────────────────
-backend/check_install.py
-backend/check_ollama.py
-backend/seed_test.py
-backend/verify_imports.py
-backend/test_ingestion.py
-backend/test_pipeline.py
 backend/test_*.py
 tests_output/
 *.log
@@ -162,3 +156,9 @@ data/uploads/
 # ── Supabase local dev ───────────────────────────────────
 supabase/.branches/
 supabase/.temp/
+node_modules/
+
+# ── Database setup scripts (hide from public repo view) ───
+schema.sql
+backend/database/schema.sql
+backend/database/security_schema.sql

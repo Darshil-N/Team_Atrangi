@@ -1,8 +1,8 @@
 """
-api/models.py — Pydantic schemas shared across all API routes.
+api/models.py  Pydantic schemas shared across all API routes.
 
 These are the request/response models for FastAPI endpoints.
-Agent output types are in agents/ — these are only HTTP-level contracts.
+Agent output types are in agents/  these are only HTTP-level contracts.
 """
 from __future__ import annotations
 
@@ -13,9 +13,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-# ─────────────────────────────────────────────────────────
-# Patient models
-# ─────────────────────────────────────────────────────────
 
 class PatientCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Patient full name")
@@ -31,9 +28,6 @@ class PatientResponse(BaseModel):
     created_at: datetime
 
 
-# ─────────────────────────────────────────────────────────
-# File upload models
-# ─────────────────────────────────────────────────────────
 
 class UploadStatus(BaseModel):
     """Represents the processing status of one uploaded file."""
@@ -51,9 +45,6 @@ class UploadResponse(BaseModel):
     message: str
 
 
-# ─────────────────────────────────────────────────────────
-# Report models
-# ─────────────────────────────────────────────────────────
 
 class TimelineEvent(BaseModel):
     date: str
@@ -101,9 +92,6 @@ class ReportResponse(BaseModel):
     is_current: bool
 
 
-# ─────────────────────────────────────────────────────────
-# Pipeline trigger models
-# ─────────────────────────────────────────────────────────
 
 class AnalysisRequest(BaseModel):
     patient_id: UUID = Field(..., description="UUID of the patient to analyse")
@@ -116,9 +104,6 @@ class AnalysisStatus(BaseModel):
     report_id: Optional[int] = None
 
 
-# ─────────────────────────────────────────────────────────
-# Generic response wrappers
-# ─────────────────────────────────────────────────────────
 
 class HealthResponse(BaseModel):
     status: str

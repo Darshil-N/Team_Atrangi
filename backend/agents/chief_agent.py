@@ -1,5 +1,5 @@
 """
-agents/chief_agent.py — Agent 4: Chief Medical Synthesis Agent (Gemini).
+agents/chief_agent.py  Agent 4: Chief Medical Synthesis Agent (Gemini).
 
 Receives outputs from all three earlier agents + previous report,
 then produces the final structured diagnostic report using Gemini 1.5 Flash.
@@ -13,7 +13,7 @@ This is enforced at THREE levels:
   Level 2: Gemini's response is parsed and validated.
   Level 3: Python code overrides diagnosis_updated = True to False
            if outliers with those probabilities are present.
-  → Even if Gemini ignores the instructions, Level 3 catches it.
+   Even if Gemini ignores the instructions, Level 3 catches it.
 
 Usage:
     from agents.chief_agent import run
@@ -35,9 +35,6 @@ from processing.state_builder import PatientState
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────
-# Output type
-# ─────────────────────────────────────────────────────────
 
 ChiefAgentOutput = Dict[str, Any]
 """
@@ -86,13 +83,9 @@ Shape returned by run():
 }
 """
 
-# Probabilities that MUST prevent diagnosis update (Level 3 guard)
 _BLOCK_UPDATE_PROBABILITIES = {"impossible", "extremely unlikely"}
 
 
-# ─────────────────────────────────────────────────────────
-# Gemini client
-# ─────────────────────────────────────────────────────────
 
 def _get_gemini_model() -> genai.GenerativeModel:
     """Configure and return the Gemini model. Called once per run."""
@@ -110,9 +103,6 @@ def _get_gemini_model() -> genai.GenerativeModel:
     )
 
 
-# ─────────────────────────────────────────────────────────
-# Prompt construction
-# ─────────────────────────────────────────────────────────
 
 def _format_guidelines(rag_output: Dict[str, Any]) -> str:
     """Format RAG citations into a compact block for the prompt."""
@@ -137,8 +127,8 @@ def _format_outliers_for_prompt(lab_output: Dict[str, Any]) -> str:
     lines = []
     for o in outliers:
         lines.append(
-            f"  • {o['parameter']}: {o['value']} "
-            f"(expected {o['expected_range']}) — "
+            f"   {o['parameter']}: {o['value']} "
+            f"(expected {o['expected_range']})  "
             f"{o['statistical_deviation']}, probability: {o['probability']}"
         )
     return "\n".join(lines)
@@ -155,7 +145,6 @@ def _build_mega_prompt(
     Build the mega-prompt that drives the chief synthesis.
     Keep it under ~6000 tokens to leave room for Gemini's JSON response.
     """
-    # Summarise timeline compactly (too much data wastes tokens)
     timeline_str = json.dumps(state.get("timeline", [])[:20], indent=2)
     symptoms_str = json.dumps(symptoms_output.get("symptoms", []), indent=2)
     trends_str   = json.dumps(lab_output.get("trends", {}), indent=2)
@@ -165,7 +154,7 @@ def _build_mega_prompt(
     prev_str = (
         json.dumps(prev_report, indent=2)[:2000]   # cap previous report at 2k chars
         if prev_report else
-        "None — this is the first assessment for this patient."
+        "None  this is the first assessment for this patient."
     )
 
     return f"""You are a Chief Medical AI Synthesis Agent generating a structured diagnostic risk report for an ICU patient.
@@ -192,11 +181,11 @@ LAB NARRATIVE:
 === PREVIOUS REPORT (for baseline comparison) ===
 {prev_str}
 
-=== CRITICAL INSTRUCTIONS — FOLLOW EXACTLY ===
+=== CRITICAL INSTRUCTIONS  FOLLOW EXACTLY ===
 1. OUTLIER REFUSAL (MANDATORY):
    - If ANY parameter is listed in the STATISTICAL OUTLIER FLAGS section above with probability "impossible" or "extremely unlikely", you MUST set "diagnosis_updated" to false.
    - Do NOT change the diagnosis severity or add new risk flags based on flagged outlier values.
-   - Explain this in "reasoning" — cite the specific parameter and its deviation.
+   - Explain this in "reasoning"  cite the specific parameter and its deviation.
 
 2. GUIDELINE CITATION:
    - Every risk flag MUST cite at least one guideline from the RELEVANT CLINICAL GUIDELINES section.
@@ -218,7 +207,7 @@ LAB NARRATIVE:
       b) regional_language in {config.FAMILY_REGIONAL_LANGUAGE_NAME} ({config.FAMILY_REGIONAL_LANGUAGE_CODE})
     - If a blocking outlier exists, clearly explain that diagnosis is NOT being revised until redraw confirmation.
 
-=== REQUIRED OUTPUT FORMAT (JSON ONLY — no markdown, no extra text) ===
+=== REQUIRED OUTPUT FORMAT (JSON ONLY  no markdown, no extra text) ===
 {{
   "timeline": [
     {{
@@ -350,9 +339,6 @@ def _build_family_communication(
     }
 
 
-# ─────────────────────────────────────────────────────────
-# JSON extraction + validation
-# ─────────────────────────────────────────────────────────
 
 def _extract_json(raw: str) -> Dict[str, Any]:
     """Extract JSON from Gemini response, handling markdown fences."""
@@ -379,7 +365,7 @@ def _extract_json(raw: str) -> Dict[str, Any]:
 def _build_outlier_alerts_from_lab(lab_output: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Convert lab_mapper outliers into the report's outlier_alerts format.
-    Used as the authoritative source — Gemini may add more but cannot remove these.
+    Used as the authoritative source  Gemini may add more but cannot remove these.
     """
     alerts = []
     for o in lab_output.get("outliers", []):
@@ -404,9 +390,6 @@ def _build_outlier_alerts_from_lab(lab_output: Dict[str, Any]) -> List[Dict[str,
     return alerts
 
 
-# ─────────────────────────────────────────────────────────
-# Level 3 guard: Post-parse outlier enforcement
-# ─────────────────────────────────────────────────────────
 
 def _apply_outlier_guard(
     report: Dict[str, Any],
@@ -431,7 +414,7 @@ def _apply_outlier_guard(
     if report.get("diagnosis_updated") is True:
         params = ", ".join(o["parameter"] for o in blocking_outliers)
         logger.warning(
-            "chief_agent: Level 3 guard triggered — forcing diagnosis_updated=False "
+            "chief_agent: Level 3 guard triggered  forcing diagnosis_updated=False "
             "due to blocking outlier(s): %s", params
         )
         report["diagnosis_updated"] = False
@@ -441,8 +424,6 @@ def _apply_outlier_guard(
             f"Original reasoning: {report.get('reasoning', '')}"
         )
 
-    # Ensure all outlier_alerts from lab_mapper are present in the report
-    # (Gemini might have missed or dropped some)
     authoritative_alerts = _build_outlier_alerts_from_lab(lab_output)
     existing_params = {
         a.get("parameter") for a in report.get("outlier_alerts", [])
@@ -455,7 +436,6 @@ def _apply_outlier_guard(
             )
             report.setdefault("outlier_alerts", []).append(alert)
 
-    # Ensure blocking outliers are explicitly labeled as probable mismatch/lab error.
     for alert in report.get("outlier_alerts", []):
         if str(alert.get("flag", "")).upper() != "PROBABLE LAB ERROR":
             for outlier in blocking_outliers:
@@ -468,9 +448,6 @@ def _apply_outlier_guard(
     return report
 
 
-# ─────────────────────────────────────────────────────────
-# Fallback report (used if Gemini call fails entirely)
-# ─────────────────────────────────────────────────────────
 
 def _build_fallback_report(
     state: PatientState,
@@ -495,9 +472,6 @@ def _build_fallback_report(
     }
 
 
-# ─────────────────────────────────────────────────────────
-# Public entry point (called by orchestrator)
-# ─────────────────────────────────────────────────────────
 
 async def run(
     state: PatientState,
@@ -517,12 +491,11 @@ async def run(
         prev_report:     Previous Supabase report row, or None.
 
     Returns:
-        ChiefAgentOutput — the final structured diagnostic report.
+        ChiefAgentOutput  the final structured diagnostic report.
     """
     patient_id: str = state.get("patient_id", "unknown")
-    logger.info("chief_agent: starting — patient=%s", patient_id)
+    logger.info("chief_agent: starting  patient=%s", patient_id)
 
-    # ── Build and send prompt ──────────────────────────────
     try:
         prompt = _build_mega_prompt(
             state, symptoms_output, lab_output, rag_output, prev_report
@@ -538,7 +511,6 @@ async def run(
         logger.error(msg)
         return _build_fallback_report(state, lab_output, str(exc))
 
-    # ── Parse JSON response ────────────────────────────────
     try:
         report = _extract_json(raw_text)
     except ValueError as exc:
@@ -546,10 +518,8 @@ async def run(
         logger.error(msg)
         return _build_fallback_report(state, lab_output, str(exc))
 
-    # ── Level 3 outlier guard (non-negotiable) ─────────────
     report = _apply_outlier_guard(report, lab_output)
 
-    # Ensure bilingual family communication is always present and structurally valid.
     fc = report.get("family_communication")
     if not isinstance(fc, dict) or not fc.get("english") or not fc.get("regional_language"):
         report["family_communication"] = _build_family_communication(state, report, lab_output)
@@ -558,7 +528,7 @@ async def run(
         report["family_communication"].setdefault("regional_language_code", config.FAMILY_REGIONAL_LANGUAGE_CODE)
 
     logger.info(
-        "chief_agent: done — patient=%s, risk_flags=%d, outlier_alerts=%d, diagnosis_updated=%s",
+        "chief_agent: done  patient=%s, risk_flags=%d, outlier_alerts=%d, diagnosis_updated=%s",
         patient_id,
         len(report.get("risk_flags", [])),
         len(report.get("outlier_alerts", [])),

@@ -1,8 +1,8 @@
 """
-database/supabase_client.py — Singleton Supabase client + typed CRUD helpers.
+database/supabase_client.py  Singleton Supabase client + typed CRUD helpers.
 
 Every agent and route that needs DB access imports from here.
-Never create a supabase.create_client() elsewhere — use get_client() only.
+Never create a supabase.create_client() elsewhere  use get_client() only.
 """
 from __future__ import annotations
 
@@ -15,9 +15,6 @@ from supabase import create_client, Client
 import config
 
 
-# ─────────────────────────────────────────────────────────
-# Singleton client
-# ─────────────────────────────────────────────────────────
 
 _client: Optional[Client] = None
 
@@ -25,7 +22,7 @@ _client: Optional[Client] = None
 def get_client() -> Client:
     """
     Return the shared Supabase client, creating it on first call.
-    Thread-safe for async usage — supabase-py's client is stateless per request.
+    Thread-safe for async usage  supabase-py's client is stateless per request.
     """
     global _client
     if _client is None:
@@ -38,9 +35,6 @@ def get_client() -> Client:
     return _client
 
 
-# ─────────────────────────────────────────────────────────
-# Patient helpers
-# ─────────────────────────────────────────────────────────
 
 def create_patient(name: str, subject_id: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -67,7 +61,6 @@ def create_patient(name: str, subject_id: Optional[str] = None) -> Dict[str, Any
 
     response = client.table("patients").insert(data).execute()
     row = response.data[0]
-    # Attach nfc_url in memory even if the column doesn't exist in the DB yet
     row.setdefault("nfc_url", nfc_url)
     return row
 
@@ -85,9 +78,6 @@ def get_patient(patient_id: str) -> Optional[Dict[str, Any]]:
     return response.data[0] if response.data else None
 
 
-# ─────────────────────────────────────────────────────────
-# Raw data helpers (uploaded files metadata)
-# ─────────────────────────────────────────────────────────
 
 def insert_raw_data(
     patient_id: str,
@@ -109,7 +99,6 @@ def insert_raw_data(
         response = client.table("raw_data").insert(payload).execute()
         return response.data[0]
     except Exception as exc:
-        # Some schemas use file_path instead of file_url.
         if "PGRST204" not in str(exc):
             raise
 
@@ -123,9 +112,6 @@ def insert_raw_data(
     return response.data[0]
 
 
-# ─────────────────────────────────────────────────────────
-# Parsed data helpers (structured post-processing output)
-# ─────────────────────────────────────────────────────────
 
 def insert_parsed_data(
     patient_id: str,
@@ -164,9 +150,6 @@ def get_parsed_data(patient_id: str) -> List[Dict[str, Any]]:
     return response.data or []
 
 
-# ─────────────────────────────────────────────────────────
-# Report helpers
-# ─────────────────────────────────────────────────────────
 
 def get_current_report(patient_id: str) -> Optional[Dict[str, Any]]:
     """
@@ -246,11 +229,9 @@ def save_report(
         "is_current":        True,
     }
 
-    # If a current report already exists, mark it non-current first.
     if current_report:
         client.table("reports").update({"is_current": False}).eq("id", current_report["id"]).execute()
 
-    # Step 3a: insert as new versioned report row
     try:
         response = client.table("reports").insert(full_payload).execute()
         return response.data[0]
@@ -262,7 +243,6 @@ def save_report(
             "Falling back to minimal payload. Run ALTER TABLE migrations to fix.", exc
         )
 
-    # Retry once without optional family_communication for older schemas.
     try:
         payload_no_family = {k: v for k, v in full_payload.items() if k != "family_communication"}
         response = client.table("reports").insert(payload_no_family).execute()
@@ -272,7 +252,6 @@ def save_report(
     except Exception:
         pass
 
-    # Step 3b: minimal fallback — pack extras into outlier_alerts JSONB
     enriched = merged_outliers + [{"_meta": {
         "diagnosis_updated": merged_diagnosis_updated,
         "reasoning":         merged_reasoning,

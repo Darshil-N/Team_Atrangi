@@ -1,265 +1,278 @@
 <p align="center">
-  <img src="../Logo.jpeg" alt="Saanjivani Logo" width="160"/>
+  <img src="./Logo.jpeg" alt="Sanjeevani Logo" width="170"/>
 </p>
 
-<h1 align="center">Saanjivani — HC01 Diagnostic Risk Assistant</h1>
+<h1 align="center">Sanjeevani - Diagnostic Risk Assistant</h1>
 
 <p align="center">
-  <strong>A multi-agent AI system for real-time ICU complication detection</strong><br/>
-  Built for hackathon track HC01 · Team Atrangi
+  <strong>Architecture-first multi-agent ICU decision-support platform</strong><br/>
+  Team Atrangi · HC01
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.13-blue?logo=python&logoColor=white"/>
-  <img src="https://img.shields.io/badge/FastAPI-latest-009688?logo=fastapi&logoColor=white"/>
-  <img src="https://img.shields.io/badge/Ollama-phi3%3Amini-black?logo=ollama"/>
+  <img src="https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Ollama-phi3:mini-black?logo=ollama"/>
   <img src="https://img.shields.io/badge/Gemini-1.5%20Flash-4285F4?logo=google&logoColor=white"/>
   <img src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white"/>
-  <img src="https://img.shields.io/badge/ChromaDB-Vector%20Store-FF6B6B"/>
+  <img src="https://img.shields.io/badge/ChromaDB-RAG-FF6B6B"/>
 </p>
 
 ---
 
-## What It Does
+## 1. System Purpose
 
-Saanjivani is an **agentic AI diagnostic assistant** for ICU physicians. It continuously monitors a patient's clinical notes and lab results, detects emerging complications (sepsis, organ failure), retrieves evidence-based guidelines, and generates structured diagnostic reports — all in real time.
+Sanjeevani is a multi-agent clinical decision-support system that ingests patient files (notes, labs, vitals), builds a unified temporal state, retrieves relevant guideline evidence, and generates structured risk reports.
 
-**The core innovation**: the system refuses to update a diagnosis when lab values are statistically impossible (e.g., K⁺ = 14.0 mmol/L). Instead of hallucinating a conclusion from corrupted data, it flags the probable lab error and preserves the prior clinical assessment.
+Primary design objective:
 
----
+- Provide fast, explainable risk synthesis for ICU workflows.
+- Refuse unsafe diagnosis updates when statistically improbable outliers are detected.
+- Keep ingestion, analysis, and report delivery deterministic and traceable.
 
-## Architecture
-
-```
-                        ┌──────────────────────────────┐
-                        │        FastAPI Backend        │
-                        │   POST /reports/analyse       │
-                        └────────────┬─────────────────┘
-                                     │ BackgroundTask
-                   ┌─────────────────▼──────────────────┐
-                   │          Orchestrator               │
-                   │      agents/orchestrator.py         │
-                   └──┬──────────────┬──────────────────┘
-          asyncio.gather             │
-       ┌────────┴──────┐             │ sequential
-       ▼               ▼             ▼
- ┌───────────┐  ┌────────────┐  ┌──────────────────┐
- │note_parser│  │ lab_mapper │  │    rag_agent      │
- │           │  │            │  │                   │
- │ Ollama    │  │ Pandas +   │  │ ChromaDB          │
- │ phi3:mini │  │ Scipy +    │  │ all-MiniLM-L6-v2 │
- │           │  │ Ollama     │  │ (no LLM needed)  │
- └─────┬─────┘  └─────┬──────┘  └────────┬─────────┘
-       └──────────────┴──────────────────┘
-                       │ all outputs
-                       ▼
-            ┌──────────────────────┐
-            │    chief_agent       │
-            │  Gemini 1.5 Flash    │
-            │  + Outlier Guard     │
-            └──────────┬───────────┘
-                       │
-                       ▼
-              ┌─────────────────┐
-              │   Supabase DB   │
-              │  reports table  │
-              └─────────────────┘
-```
+This system is for decision support and clinical workflow augmentation.
 
 ---
 
-## Agent Pipeline
+## 2. Architecture Overview
 
-| Agent | Model | Role |
-|-------|-------|------|
-| `note_parser` | Ollama `phi3:mini` | Extracts symptoms from unstructured clinical notes |
-| `lab_mapper` | Pandas + `phi3:mini` | Computes trends, detects statistical outliers (3σ rule) |
-| `rag_agent` | ChromaDB (no LLM) | Retrieves relevant clinical guidelines by semantic similarity |
-| `chief_agent` | Gemini 1.5 Flash | Synthesises all inputs into a structured diagnostic report |
+### 2.1 High-level Diagram (Image)
 
-### The Outlier Refusal System (3-Layer Guard)
+<p align="center">
+  <img src="./System_architecture.png" alt="Sanjeevani System Architecture Diagram" width="980"/>
+</p>
 
-When a lab value is physiologically impossible:
+### 2.2 High-level Diagram (Text)
 
+```text
+Frontend (React)                       Backend (FastAPI)
+------------------                     -----------------------------
+Staff / Doctor / Patient UI  --->      /upload, /reports, /patients
+PIN auth (Supabase tables)             API routes + background tasks
+Realtime report views                  |
+PDF export                             v
+                               Orchestrator (agents/orchestrator.py)
+                               |-------------------------------|
+                               | Parallel workers              |
+                               |  - note_parser (local LLM)    |
+                               |  - lab_mapper (stats + LLM)   |
+                               |  - rag_agent (Chroma retriever)|
+                               |-------------------------------|
+                                              |
+                                              v
+                               chief_agent (Gemini synthesis + guards)
+                                              |
+                                              v
+                               Supabase PostgreSQL (patients, parsed_data,
+                               reports, audit/security tables)
 ```
-Layer 1 → lab_mapper:   Pandas 3σ detection flags the value statistically
-Layer 2 → chief prompt: Gemini explicitly instructed to set diagnosis_updated=false
-Layer 3 → Python guard: _apply_outlier_guard() overrides any Gemini misjudgement
-```
 
-Even if Gemini hallucinates, Layer 3 catches it.
+### 2.3 Mermaid Architecture
+
+```mermaid
+flowchart LR
+    A[Frontend Portals\nDoctor Staff Patient] --> B[FastAPI API Layer\npatients upload reports]
+    B --> C[Orchestrator]
+
+    C --> D[note_parser\nOllama phi3:mini]
+    C --> E[lab_mapper\nPandas + stats + phi3]
+    C --> F[rag_agent\nChroma similarity]
+
+    D --> G[chief_agent\nGemini synthesis]
+    E --> G
+    F --> G
+
+    G --> H[(Supabase DB)]
+    B <--> H
+    I[(ChromaDB)] <--> F
+```
 
 ---
 
-## Tech Stack
+## 3. Component Responsibilities
+
+### 3.1 API Layer (`backend/api`)
+
+- `main.py`: FastAPI app, middleware, route registration.
+- `routes/upload.py`: file ingestion, parse routing, parsed row persistence, optional pipeline trigger.
+- `routes/reports.py`: analysis trigger endpoint and current report retrieval.
+- `routes/patients.py`: patient creation and retrieval.
+
+### 3.2 Orchestration Layer (`backend/agents/orchestrator.py`)
+
+- Builds patient state.
+- Executes worker stages with queueing support for repeated runs.
+- Calls chief synthesis.
+- Saves report versions and current pointer.
+
+### 3.3 Agent Layer (`backend/agents`)
+
+- `note_parser.py`: extracts symptom signals from unstructured notes.
+- `lab_mapper.py`: computes trends, flags outliers, provides narrative context.
+- `rag_agent.py`: retrieves guideline citations from local vector store.
+- `chief_agent.py`: fuses all signals into final structured report and applies safety guardrails.
+
+### 3.4 Processing Layer (`backend/processing`)
+
+- `file_router.py`: dispatches uploads to parser modules by extension and hint.
+- `parsers/*`: CSV/PDF/TXT/JSON specific extraction.
+- `state_builder.py`: constructs normalized timeline state from parsed data.
+
+### 3.5 Data Layer (`backend/database`)
+
+- `supabase_client.py`: centralized DB access and report versioning.
+- `storage_client.py`: optional object storage upload.
+- `schema.sql` and `security_schema.sql`: schema and security policy setup.
+
+### 3.6 Vector Layer (`backend/vector_db`)
+
+- `chroma_setup.py`: initializes persistent Chroma collection.
+- `load_guidelines.py`: loads seed and guideline documents into vector store.
+
+---
+
+## 4. End-to-End Data Flow
+
+1. Staff uploads note/lab/vital file via frontend.
+2. `/upload/{patient_id}` receives multipart file.
+3. File is parsed through `processing/file_router.py` and parser modules.
+4. Structured rows are inserted into `parsed_data`.
+5. Analysis is triggered (`/reports/analyse` or upload trigger).
+6. Orchestrator builds patient timeline state.
+7. Worker agents produce:
+   - symptoms
+   - lab trends and outliers
+   - retrieved guideline citations
+8. Chief agent generates final report JSON.
+9. Outlier safety guard enforces diagnosis hold where required.
+10. Report is saved as versioned record; newest marked `is_current=true`.
+11. Frontend fetches and renders timeline, risk flags, outlier alerts, and family summary.
+
+---
+
+## 5. Safety and Reliability Design
+
+### 5.1 Outlier Refusal Guard
+
+Three-layer protection:
+
+1. Statistical outlier detection in `lab_mapper`.
+2. Mandatory chief prompt instruction to avoid diagnosis update on blocking outliers.
+3. Post-generation hard override in `chief_agent` to force `diagnosis_updated=false` when outlier probabilities are blocking.
+
+### 5.2 Versioned Reporting
+
+- Reports are saved as versions, not overwritten.
+- Current report pointer (`is_current`) supports stable UI retrieval.
+
+### 5.3 Queueing for Re-analysis
+
+- Repeated analysis requests for same patient are queued to avoid race conditions.
+
+---
+
+## 6. Technology Stack
 
 | Layer | Technology |
-|-------|-----------|
-| **API** | FastAPI + Uvicorn |
-| **Local LLM** | Ollama `phi3:mini` (~2.3 GB VRAM) |
-| **Cloud AI** | Google Gemini 1.5 Flash |
-| **Vector DB** | ChromaDB + `all-MiniLM-L6-v2` embeddings |
-| **Database** | Supabase (PostgreSQL) |
-| **ML / Stats** | Pandas, NumPy, Scipy |
-| **Document Parsing** | pdfplumber, PyPDF2 |
-| **Orchestration** | LangChain + asyncio |
-
-### VRAM Budget (6 GB RTX 3050)
-
-| Component | VRAM |
-|-----------|------|
-| phi3:mini weights | ~2.3 GB |
-| KV cache @ ctx=4096 | ~1.5 GB |
-| ChromaDB embeddings | CPU only |
-| **Total** | **~3.8 GB** (2.2 GB headroom) |
+|---|---|
+| Frontend | React, Vite, Recharts, html2pdf |
+| API | FastAPI, Uvicorn |
+| Local Model Runtime | Ollama (`phi3:mini`) |
+| Cloud Synthesis | Gemini 1.5 Flash |
+| Vector Retrieval | ChromaDB + sentence-transformer embeddings |
+| Database | Supabase PostgreSQL |
+| Data Processing | Pandas, NumPy, PDF parsers |
 
 ---
 
-## Project Structure
+## 7. Repository Structure
 
-```
+```text
 Team_Atrangi/
 ├── backend/
 │   ├── api/
-│   │   ├── main.py               # FastAPI entry point
-│   │   ├── models.py             # Pydantic schemas
+│   │   ├── main.py
+│   │   ├── models.py
 │   │   └── routes/
-│   │       ├── patients.py       # Patient CRUD
-│   │       ├── upload.py         # File ingestion (WIP)
-│   │       └── reports.py        # Analysis trigger + retrieval
+│   │       ├── patients.py
+│   │       ├── reports.py
+│   │       └── upload.py
 │   ├── agents/
-│   │   ├── note_parser.py        # Agent 1 — symptom extraction
-│   │   ├── lab_mapper.py         # Agent 2 — lab trends + outlier detection
-│   │   ├── rag_agent.py          # Agent 3 — guideline retrieval
-│   │   ├── chief_agent.py        # Agent 4 — Gemini synthesis
-│   │   └── orchestrator.py       # Pipeline coordinator
+│   │   ├── chief_agent.py
+│   │   ├── lab_mapper.py
+│   │   ├── note_parser.py
+│   │   ├── orchestrator.py
+│   │   └── rag_agent.py
 │   ├── database/
-│   │   ├── supabase_client.py    # DB connection + CRUD
-│   │   └── schema.sql            # PostgreSQL schema
+│   │   ├── schema.sql
+│   │   ├── security_schema.sql
+│   │   ├── storage_client.py
+│   │   └── supabase_client.py
 │   ├── processing/
-│   │   └── state_builder.py      # Unified patient state assembler
+│   │   ├── file_router.py
+│   │   ├── state_builder.py
+│   │   └── parsers/
 │   ├── vector_db/
-│   │   ├── chroma_setup.py       # ChromaDB initialisation
-│   │   └── load_guidelines.py    # Seed + PDF guideline ingestion
-│   ├── config.py                 # Environment config + validation
-│   ├── requirements.txt          # Python dependencies
-│   ├── start.py                  # One-command server launcher
-│   └── test_pipeline.py          # End-to-end test (3 scenarios)
-└── schema.sql                    # Supabase SQL schema reference
+│   │   ├── chroma_setup.py
+│   │   └── load_guidelines.py
+│   ├── config.py
+│   ├── requirements.txt
+│   └── start.py
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── styles.css
+│   │   └── lib/
+│   └── package.json
+├── Logo.jpeg
+└── System_architecture.png
 ```
 
 ---
 
-## Quick Start
+## 8. Quick Start
 
-### Prerequisites
-
-- Python 3.11+
-- [Ollama](https://ollama.ai) installed
-- Supabase project (free tier works)
-- Google Gemini API key
-
-### 1. Install dependencies
+### 8.1 Backend
 
 ```bash
 cd backend
 pip install -r requirements.txt
-```
-
-### 2. Configure environment
-
-```bash
-copy .env.example .env
-# Fill in: SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY
-```
-
-### 3. Set up the database
-
-Run `backend/database/schema.sql` in the Supabase SQL Editor.
-
-### 4. Pull the local model
-
-```bash
-ollama pull phi3:mini
-```
-
-### 5. Seed clinical guidelines
-
-```bash
-python -m vector_db.load_guidelines
-```
-
-### 6. Start the server
-
-```bash
 python start.py
 ```
 
-**API docs → http://localhost:8080/docs**
+API docs: `http://localhost:8080/docs`
 
----
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | Health check + config status |
-| `POST` | `/reports/analyse` | Trigger the full agent pipeline |
-| `GET` | `/reports/{patient_id}/current` | Fetch latest diagnostic report |
-| `GET` | `/docs` | Interactive Swagger UI |
-
-### Trigger analysis
+### 8.2 Frontend
 
 ```bash
-curl -X POST http://localhost:8080/reports/analyse \
-  -H "Content-Type: application/json" \
-  -d '{"patient_id": "your-patient-uuid"}'
+cd frontend
+npm install
+npm run dev
 ```
 
 ---
 
-## Running Tests
+## 9. Key API Endpoints
 
-No server required — tests call the pipeline directly in Python:
-
-```bash
-cd backend
-
-# Test Case A: Stable patient — no false positives
-python test_pipeline.py
-
-# Test Case B: Sepsis — HIGH risk flag + guideline citation
-python test_pipeline.py --sepsis
-
-# Test Case C: K+=14.0 impossible value — outlier refusal
-python test_pipeline.py --outlier
-```
-
-### Expected output for Test Case C
-
-```
-ASSERTIONS
-  PASS — diagnosis_updated is False
-  PASS — outlier_alerts present
-  PASS — Potassium flagged as: PROBABLE LAB ERROR
-```
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/health` | Service health and model config view |
+| POST | `/patients/` | Create patient record |
+| GET | `/patients/{patient_id}` | Get patient metadata |
+| POST | `/upload/{patient_id}` | Upload and parse clinical file |
+| POST | `/reports/analyse` | Trigger analysis pipeline |
+| GET | `/reports/{patient_id}/current` | Fetch current report |
 
 ---
 
-## Key Design Decisions
+## 10. Operational Notes
 
-**Why `phi3:mini` over `llama3.1:8b`?**
-Llama 3.1 leaves only ~1.3 GB VRAM when idle. Processing dense ICU notes fills the KV cache and spills to system RAM, causing mid-demo stalls. `phi3:mini` keeps the footprint at ~3.8 GB — safe under full load.
-
-**Why two LLMs (phi3 + Gemini)?**
-phi3:mini handles fast local extraction tasks offline. Gemini Flash handles final synthesis which requires long-context reasoning across all agent outputs — beyond phi3's capacity within the VRAM budget.
-
-**Why is the RAG agent LLM-free?**
-Vector similarity is deterministic and needs no LLM. Adding one would only increase latency and VRAM pressure — the chief agent already reasons over retrieved guidelines.
+- Keep `STORAGE_UPLOAD_ENABLED=false` for DB-first mode when object storage is not required.
+- Apply `security_schema.sql` in Supabase before using PIN/audit flows.
+- Frontend build warnings about large chunks are optimization concerns, not build failures.
 
 ---
 
 <p align="center">
-  <em>Saanjivani — "That which restores life"</em><br/>
-  Team Atrangi · HC01 Hackathon
+  <em>Sanjeevani - focused architecture for reliable ICU decision support</em>
 </p>

@@ -1,5 +1,5 @@
 """
-processing/parsers/lab_csv_parser.py — Parse tabular lab data from CSV/Excel.
+processing/parsers/lab_csv_parser.py  Parse tabular lab data from CSV/Excel.
 
 Handles two modes:
   1. Standard mode: human-readable column headers (WBC, Lactate, etc.)
@@ -18,62 +18,36 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# ─────────────────────────────────────────────────────────
-# Column name normalisation map (standard mode)
-# All synonyms map to a canonical parameter name.
-# ─────────────────────────────────────────────────────────
 
 _PARAM_MAP: Dict[str, str] = {
-    # White Blood Cells
     "wbc": "WBC", "white blood cell": "WBC", "white blood cells": "WBC",
     "leucocytes": "WBC", "leukocytes": "WBC",
-    # Hemoglobin
     "hgb": "Hemoglobin", "hemoglobin": "Hemoglobin", "haemoglobin": "Hemoglobin",
     "hb": "Hemoglobin", "hgb (g/dl)": "Hemoglobin",
-    # Platelets
     "plt": "Platelets", "platelets": "Platelets", "platelet count": "Platelets",
     "thrombocytes": "Platelets",
-    # Lactate
     "lac": "Lactate", "lactate": "Lactate", "lactic acid": "Lactate",
     "lac (mmol/l)": "Lactate",
-    # Creatinine
     "cr": "Creatinine", "creatinine": "Creatinine", "creat": "Creatinine",
     "creatinine (mg/dl)": "Creatinine",
-    # BUN
     "bun": "BUN", "urea nitrogen": "BUN", "blood urea nitrogen": "BUN",
-    # Potassium
     "k": "Potassium", "k+": "Potassium", "potassium": "Potassium",
     "serum potassium": "Potassium",
-    # Sodium
     "na": "Sodium", "na+": "Sodium", "sodium": "Sodium", "serum sodium": "Sodium",
-    # Glucose
     "glu": "Glucose", "glucose": "Glucose", "blood glucose": "Glucose",
     "gluc": "Glucose",
-    # pH
     "ph": "pH", "arterial ph": "pH",
-    # Bicarbonate
     "hco3": "Bicarbonate", "bicarbonate": "Bicarbonate", "bicarb": "Bicarbonate",
-    # Bilirubin
     "tbili": "Bilirubin", "bilirubin": "Bilirubin", "total bilirubin": "Bilirubin",
-    # CRP
     "crp": "CRP", "c-reactive protein": "CRP",
-    # Procalcitonin
     "pct": "Procalcitonin", "procalcitonin": "Procalcitonin",
-    # Troponin
     "trop": "Troponin", "troponin": "Troponin", "troponin i": "Troponin",
-    # INR
     "inr": "INR", "pt inr": "INR",
-    # FiO2 / PaO2
     "fio2": "FiO2", "pao2": "PaO2", "spo2": "SpO2",
 }
 
-# ─────────────────────────────────────────────────────────
-# MIMIC-III itemid → canonical parameter name
-# Source: MIMIC-III D_LABITEMS.csv (most common ICU items)
-# ─────────────────────────────────────────────────────────
 
 _MIMIC_ITEMID_MAP: Dict[int, Tuple[str, str]] = {
-    # itemid: (canonical_name, unit)
     51300: ("WBC",          "K/uL"),
     51301: ("WBC",          "K/uL"),
     51222: ("Hemoglobin",   "g/dL"),
@@ -90,7 +64,6 @@ _MIMIC_ITEMID_MAP: Dict[int, Tuple[str, str]] = {
     51237: ("INR",          ""),
     50821: ("PaO2",         "mmHg"),
     50816: ("FiO2",         "%"),
-    # Chart events (common vitals in MIMIC-III)
     220045: ("HeartRate",   "bpm"),
     220050: ("SysBP",       "mmHg"),
     220051: ("DiasBP",      "mmHg"),
@@ -100,9 +73,6 @@ _MIMIC_ITEMID_MAP: Dict[int, Tuple[str, str]] = {
     220277: ("SpO2",        "%"),
 }
 
-# ─────────────────────────────────────────────────────────
-# Timestamp column detection
-# ─────────────────────────────────────────────────────────
 
 _TS_COLUMNS = [
     "timestamp", "datetime", "date", "date_time",
@@ -132,9 +102,6 @@ def _parse_timestamp(value: Any) -> str:
         return datetime.now(timezone.utc).isoformat()
 
 
-# ─────────────────────────────────────────────────────────
-# MIMIC-III mode
-# ─────────────────────────────────────────────────────────
 
 def _is_mimic_format(df: pd.DataFrame) -> bool:
     """Detect MIMIC-III format by checking for itemid + valuenum columns."""
@@ -151,14 +118,12 @@ def _parse_mimic(df: pd.DataFrame, filename: str) -> List[Dict[str, Any]]:
     """
     warnings: List[str] = []
 
-    # Normalise column names to lowercase
     df.columns = [c.lower() for c in df.columns]
 
     ts_col = "charttime" if "charttime" in df.columns else "chartdate"
     if ts_col not in df.columns:
         ts_col = None
 
-    # Keep only rows with known itemids
     df["itemid"] = pd.to_numeric(df["itemid"], errors="coerce")
     known_mask = df["itemid"].isin(_MIMIC_ITEMID_MAP.keys())
     unknown_count = (~known_mask).sum()
@@ -176,7 +141,6 @@ def _parse_mimic(df: pd.DataFrame, filename: str) -> List[Dict[str, Any]]:
 
     df["valuenum"] = pd.to_numeric(df["valuenum"], errors="coerce")
 
-    # Group by timestamp
     if ts_col:
         df["_ts"] = pd.to_datetime(df[ts_col], utc=True, errors="coerce")
     else:
@@ -219,9 +183,6 @@ def _parse_mimic(df: pd.DataFrame, filename: str) -> List[Dict[str, Any]]:
     return results
 
 
-# ─────────────────────────────────────────────────────────
-# Standard mode
-# ─────────────────────────────────────────────────────────
 
 def _normalise_col(col: str) -> Optional[str]:
     """Map a column name to its canonical parameter name, or None if not recognised."""
@@ -236,7 +197,6 @@ def _parse_standard(df: pd.DataFrame, filename: str) -> List[Dict[str, Any]]:
     warnings: List[str] = []
     ts_col = _find_timestamp_column(df)
 
-    # Build column → canonical mapping
     col_map: Dict[str, str] = {}
     for col in df.columns:
         if col == ts_col:
@@ -245,7 +205,7 @@ def _parse_standard(df: pd.DataFrame, filename: str) -> List[Dict[str, Any]]:
         if canonical:
             col_map[col] = canonical
         else:
-            warnings.append(f"Unrecognised column '{col}' — skipped.")
+            warnings.append(f"Unrecognised column '{col}'  skipped.")
 
     if not col_map:
         warnings.append("No recognised lab parameter columns found.")
@@ -287,9 +247,6 @@ def _parse_standard(df: pd.DataFrame, filename: str) -> List[Dict[str, Any]]:
     return results
 
 
-# ─────────────────────────────────────────────────────────
-# Public entry point
-# ─────────────────────────────────────────────────────────
 
 def parse(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
     """
@@ -304,7 +261,6 @@ def parse(file_bytes: bytes, filename: str) -> List[Dict[str, Any]]:
         if ext in ("xlsx", "xls"):
             df = pd.read_excel(io.BytesIO(file_bytes))
         else:
-            # Try common delimiters: comma, semicolon, tab
             for sep in (",", ";", "\t"):
                 try:
                     df = pd.read_csv(io.BytesIO(file_bytes), sep=sep)
