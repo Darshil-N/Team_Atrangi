@@ -20,38 +20,58 @@
 
 ---
 
-## 1. System Purpose
+## 1. What Is New (Latest Features)
 
-Sanjeevani is a multi-agent clinical decision-support system that ingests patient files (notes, labs, vitals), builds a unified temporal state, retrieves relevant guideline evidence, and generates structured risk reports.
+The README has been updated for the latest product behavior across frontend and backend.
 
-Primary design objective:
-
-- Provide fast, explainable risk synthesis for ICU workflows.
-- Refuse unsafe diagnosis updates when statistically improbable outliers are detected.
-- Keep ingestion, analysis, and report delivery deterministic and traceable.
-
-This system is for decision support and clinical workflow augmentation.
+- NFC secure link now supports doctor PIN verification and then shows:
+  - full clinical report
+  - disease progression timeline chart
+  - analytics charts (latest labs, risk severity, ingested source mix)
+- Multi-language analytics support in English, Hindi, and Marathi.
+- Runtime translation pipeline in frontend for dynamic clinical text:
+  - chunking and cache
+  - medical-term masking/unmasking
+  - fallback to source text on translation failure
+- Family communication cards show both English and configured regional language output.
+- PIN-based role access with lockout/cooldown controls and session timeout.
+- PDF clinical report export includes graph summaries and timeline trend chart.
+- Real-time current-report updates using Supabase channels.
 
 ---
 
-## 2. Architecture Overview
+## 2. System Purpose
 
-### 2.1 High-level Diagram (Image)
+Sanjeevani is a multi-agent clinical decision-support system that ingests patient files (notes, labs, vitals), builds a unified temporal state, retrieves guideline evidence, and produces structured risk reports.
+
+Core goals:
+
+- Fast, explainable risk synthesis for ICU workflows.
+- Refusal of unsafe diagnosis updates when statistically improbable outliers are detected.
+- Deterministic and traceable ingestion-to-report pipeline.
+
+This system is decision support software and does not replace clinician judgment.
+
+---
+
+## 3. Architecture Overview
+
+### 3.1 High-level Diagram (Image)
 
 <p align="center">
   <img src="./System_architecture.png" alt="Sanjeevani System Architecture Diagram" width="980"/>
 </p>
 
-### 2.2 High-level Diagram (Text)
+### 3.2 High-level Diagram (Text)
 
 ```text
 Frontend (React)                       Backend (FastAPI)
 ------------------                     -----------------------------
 Staff / Doctor / Patient UI  --->      /upload, /reports, /patients
-PIN auth (Supabase tables)             API routes + background tasks
+PIN + role gating                      API routes + orchestration
 Realtime report views                  |
-PDF export                             v
-                               Orchestrator (agents/orchestrator.py)
+NFC secure access                      v
+Translation + PDF export       Orchestrator (agents/orchestrator.py)
                                |-------------------------------|
                                | Parallel workers              |
                                |  - note_parser (local LLM)    |
@@ -64,157 +84,122 @@ PDF export                             v
                                               |
                                               v
                                Supabase PostgreSQL (patients, parsed_data,
-                               reports, audit/security tables)
-```
-
-### 2.3 Mermaid Architecture
-
-```mermaid
-flowchart LR
-    A[Frontend Portals\nDoctor Staff Patient] --> B[FastAPI API Layer\npatients upload reports]
-    B --> C[Orchestrator]
-
-    C --> D[note_parser\nOllama phi3:mini]
-    C --> E[lab_mapper\nPandas + stats + phi3]
-    C --> F[rag_agent\nChroma similarity]
-
-    D --> G[chief_agent\nGemini synthesis]
-    E --> G
-    F --> G
-
-    G --> H[(Supabase DB)]
-    B <--> H
-    I[(ChromaDB)] <--> F
+                               reports, security/audit tables)
 ```
 
 ---
 
-## 3. Component Responsibilities
+## 4. Frontend Features
 
-### 3.1 API Layer (`backend/api`)
+### 4.1 Portals and Access
 
-- `main.py`: FastAPI app, middleware, route registration.
-- `routes/upload.py`: file ingestion, parse routing, parsed row persistence, optional pipeline trigger.
-- `routes/reports.py`: analysis trigger endpoint and current report retrieval.
-- `routes/patients.py`: patient creation and retrieval.
+- Single role-aware login flow for doctor, staff, patient.
+- PIN authentication with failed-attempt handling and timed lockouts.
+- 15-minute session inactivity timeout.
+- Role-restricted navigation and route protection.
 
-### 3.2 Orchestration Layer (`backend/agents/orchestrator.py`)
+### 4.2 NFC Workflow
 
-- Builds patient state.
-- Executes worker stages with queueing support for repeated runs.
-- Calls chief synthesis.
-- Saves report versions and current pointer.
+- NFC URL pattern: /nfc/:patientId
+- Requires doctor identifier + doctor PIN verification.
+- After successful verification, shows:
+  - patient report content
+  - trend/time chart card
+  - integrated analytics charts in the same page
 
-### 3.3 Agent Layer (`backend/agents`)
+### 4.3 Analytics and Clinical Views
 
-- `note_parser.py`: extracts symptom signals from unstructured notes.
-- `lab_mapper.py`: computes trends, flags outliers, provides narrative context.
-- `rag_agent.py`: retrieves guideline citations from local vector store.
-- `chief_agent.py`: fuses all signals into final structured report and applies safety guardrails.
+- Disease progression timeline graph from report timeline rows.
+- Latest lab-value bars.
+- Risk severity distribution chart.
+- Ingested source breakdown chart.
+- Family communication cards for English and regional language text.
 
-### 3.4 Processing Layer (`backend/processing`)
+### 4.4 Multilingual and Translation
 
-- `file_router.py`: dispatches uploads to parser modules by extension and hint.
-- `parsers/*`: CSV/PDF/TXT/JSON specific extraction.
-- `state_builder.py`: constructs normalized timeline state from parsed data.
+- UI i18n dictionary for English/Hindi/Marathi labels.
+- Runtime translation for dynamic text fields using external translation API.
+- Translation chunking, in-memory caching, and failure fallback.
+- Medical glossary masking to preserve key terms during translation.
 
-### 3.5 Data Layer (`backend/database`)
+### 4.5 Report Export
 
-- `supabase_client.py`: centralized DB access and report versioning.
-- `storage_client.py`: optional object storage upload.
-- `schema.sql` and `security_schema.sql`: schema and security policy setup.
-
-### 3.6 Vector Layer (`backend/vector_db`)
-
-- `chroma_setup.py`: initializes persistent Chroma collection.
-- `load_guidelines.py`: loads seed and guideline documents into vector store.
+- PDF export includes visual summaries and timeline trend graphic.
+- Structured sections for risk flags, outliers, timeline, and chief reasoning.
 
 ---
 
-## 4. End-to-End Data Flow
+## 5. Backend Features
 
-1. Staff uploads note/lab/vital file via frontend.
-2. `/upload/{patient_id}` receives multipart file.
-3. File is parsed through `processing/file_router.py` and parser modules.
-4. Structured rows are inserted into `parsed_data`.
-5. Analysis is triggered (`/reports/analyse` or upload trigger).
-6. Orchestrator builds patient timeline state.
-7. Worker agents produce:
-   - symptoms
-   - lab trends and outliers
-   - retrieved guideline citations
-8. Chief agent generates final report JSON.
-9. Outlier safety guard enforces diagnosis hold where required.
-10. Report is saved as versioned record; newest marked `is_current=true`.
-11. Frontend fetches and renders timeline, risk flags, outlier alerts, and family summary.
+### 5.1 API Layer
 
----
+- Patient CRUD-oriented retrieval and creation endpoints.
+- Upload parsing endpoint for notes/labs/vitals.
+- Report analysis trigger and current report fetch.
+- Health endpoint for operational checks.
 
-## 5. Safety and Reliability Design
+### 5.2 Agent Pipeline
 
-### 5.1 Outlier Refusal Guard
+- note_parser: symptom signal extraction.
+- lab_mapper: trend computation and outlier statistics.
+- rag_agent: guideline retrieval from vector store.
+- chief_agent: report synthesis + safety policy enforcement.
 
-Three-layer protection:
+### 5.3 Safety Guardrails
 
-1. Statistical outlier detection in `lab_mapper`.
-2. Mandatory chief prompt instruction to avoid diagnosis update on blocking outliers.
-3. Post-generation hard override in `chief_agent` to force `diagnosis_updated=false` when outlier probabilities are blocking.
+- Three-level outlier refusal strategy:
+  - statistical outlier detection
+  - explicit synthesis constraints
+  - hard post-generation override
+- If blocking outliers are present, diagnosis update is forced false.
 
-### 5.2 Versioned Reporting
+### 5.4 Family Communication Output
 
-- Reports are saved as versions, not overwritten.
-- Current report pointer (`is_current`) supports stable UI retrieval.
-
-### 5.3 Queueing for Re-analysis
-
-- Repeated analysis requests for same patient are queued to avoid race conditions.
+- Report contains family_communication with:
+  - english
+  - regional_language
+  - regional_language_name
+  - regional_language_code
+- Regional language defaults are configurable via environment variables.
 
 ---
 
-## 6. Technology Stack
+## 6. End-to-End Data Flow
+
+1. Staff uploads clinical file.
+2. Backend parses and stores structured rows in parsed_data.
+3. Analysis pipeline runs (orchestrator + agents).
+4. Chief report is generated with outlier safety checks.
+5. Report is versioned; latest is marked is_current=true.
+6. Frontend renders diagnostics, analytics, family communication, and export views.
+7. NFC secure flow allows doctor-verified access to the same patient intelligence.
+
+---
+
+## 7. Technology Stack
 
 | Layer | Technology |
 |---|---|
 | Frontend | React, Vite, Recharts, html2pdf |
 | API | FastAPI, Uvicorn |
-| Local Model Runtime | Ollama (`phi3:mini`) |
+| Local Model Runtime | Ollama (phi3:mini) |
 | Cloud Synthesis | Gemini 2.5 Flash |
-| Vector Retrieval | ChromaDB + sentence-transformer embeddings |
+| Vector Retrieval | ChromaDB + sentence-transformers |
 | Database | Supabase PostgreSQL |
 | Data Processing | Pandas, NumPy, PDF parsers |
 
 ---
 
-## 7. Repository Structure
+## 8. Repository Structure
 
 ```text
 Team_Atrangi/
 ├── backend/
 │   ├── api/
-│   │   ├── main.py
-│   │   ├── models.py
-│   │   └── routes/
-│   │       ├── patients.py
-│   │       ├── reports.py
-│   │       └── upload.py
 │   ├── agents/
-│   │   ├── chief_agent.py
-│   │   ├── lab_mapper.py
-│   │   ├── note_parser.py
-│   │   ├── orchestrator.py
-│   │   └── rag_agent.py
 │   ├── database/
-│   │   ├── schema.sql
-│   │   ├── security_schema.sql
-│   │   ├── storage_client.py
-│   │   └── supabase_client.py
 │   ├── processing/
-│   │   ├── file_router.py
-│   │   ├── state_builder.py
-│   │   └── parsers/
 │   ├── vector_db/
-│   │   ├── chroma_setup.py
-│   │   └── load_guidelines.py
 │   ├── config.py
 │   ├── requirements.txt
 │   └── start.py
@@ -224,15 +209,16 @@ Team_Atrangi/
 │   │   ├── styles.css
 │   │   └── lib/
 │   └── package.json
+├── schema.sql
 ├── Logo.jpeg
 └── System_architecture.png
 ```
 
 ---
 
-## 8. Quick Start
+## 9. Quick Start
 
-### 8.1 Backend
+### 9.1 Backend
 
 ```bash
 cd backend
@@ -240,9 +226,9 @@ pip install -r requirements.txt
 python start.py
 ```
 
-API docs: `http://localhost:8080/docs`
+Backend docs: http://localhost:8080/docs
 
-### 8.2 Frontend
+### 9.2 Frontend
 
 ```bash
 cd frontend
@@ -252,27 +238,52 @@ npm run dev
 
 ---
 
-## 9. Key API Endpoints
+## 10. Required Environment Variables
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/health` | Service health and model config view |
-| POST | `/patients/` | Create patient record |
-| GET | `/patients/{patient_id}` | Get patient metadata |
-| POST | `/upload/{patient_id}` | Upload and parse clinical file |
-| POST | `/reports/analyse` | Trigger analysis pipeline |
-| GET | `/reports/{patient_id}/current` | Fetch current report |
+### 10.1 Backend (.env)
+
+- SUPABASE_URL
+- SUPABASE_KEY
+- GEMINI_API_KEY
+- GEMINI_MODEL
+- OLLAMA_HOST
+- OLLAMA_MODEL
+- CHIEF_PROVIDER
+- CHIEF_ALLOW_GEMINI_FALLBACK
+- STORAGE_UPLOAD_ENABLED
+- FAMILY_REGIONAL_LANGUAGE_NAME
+- FAMILY_REGIONAL_LANGUAGE_CODE
+
+### 10.2 Frontend (.env)
+
+- VITE_SUPABASE_URL
+- VITE_SUPABASE_ANON_KEY
+- VITE_BACKEND_URL
+- VITE_PUBLIC_APP_URL
 
 ---
 
-## 10. Operational Notes
+## 11. Key Endpoints
 
-- Keep `STORAGE_UPLOAD_ENABLED=false` for DB-first mode when object storage is not required.
-- Apply `security_schema.sql` in Supabase before using PIN/audit flows.
-- Frontend build warnings about large chunks are optimization concerns, not build failures.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | /health | Service health and runtime config view |
+| POST | /patients/ | Create patient record |
+| GET | /patients/{patient_id} | Read patient metadata |
+| POST | /upload/{patient_id} | Upload and parse clinical file |
+| POST | /reports/analyse | Trigger analysis pipeline |
+| GET | /reports/{patient_id}/current | Fetch current report |
+
+---
+
+## 12. Operational Notes
+
+- Apply backend/database/security_schema.sql in Supabase before using PIN/audit flows.
+- Keep STORAGE_UPLOAD_ENABLED=false for DB-first operation when object storage is not needed.
+- Large frontend chunk warnings are optimization notes, not hard build failures.
 
 ---
 
 <p align="center">
-  <em>Sanjeevani - focused architecture for reliable ICU decision support</em>
+  <em>Sanjeevani - reliable, explainable ICU decision support</em>
 </p>
