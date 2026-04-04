@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Python-3.13-blue?logo=python&logoColor=white"/>
   <img src="https://img.shields.io/badge/FastAPI-API-009688?logo=fastapi&logoColor=white"/>
   <img src="https://img.shields.io/badge/Ollama-phi3:mini-black?logo=ollama"/>
-  <img src="https://img.shields.io/badge/Gemini-1.5%20Flash-4285F4?logo=google&logoColor=white"/>
+  <img src="https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4?logo=google&logoColor=white"/>
   <img src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white"/>
   <img src="https://img.shields.io/badge/ChromaDB-RAG-FF6B6B"/>
 </p>
@@ -178,7 +178,7 @@ Three-layer protection:
 | Frontend | React, Vite, Recharts, html2pdf |
 | API | FastAPI, Uvicorn |
 | Local Model Runtime | Ollama (`phi3:mini`) |
-| Cloud Synthesis | Gemini 1.5 Flash |
+| Cloud Synthesis | Gemini 2.5 Flash |
 | Vector Retrieval | ChromaDB + sentence-transformer embeddings |
 | Database | Supabase PostgreSQL |
 | Data Processing | Pandas, NumPy, PDF parsers |
