@@ -23,6 +23,302 @@ import html2pdf from "html2pdf.js";
 const SESSION_KEY = "hc01-pin-session";
 const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
 const LOGO_SRC = "/Logo.jpeg";
+const ANALYTICS_LANGUAGE_KEY = "hc01-analytics-language";
+
+const ANALYTICS_I18N = {
+  en: {
+    languageLabel: "Language",
+    languages: { en: "English", hi: "Hindi", mr: "Marathi" },
+    doctorTitle: "Doctor Analytics",
+    patientTitle: "Patient Analytics",
+    latestLabValues: "Latest Lab Values",
+    riskSeverityDistribution: "Risk Severity Distribution",
+    ingestedDataSources: "Ingested Data Sources",
+    patientLabel: "Patient",
+    selectPatient: "Select patient",
+    unnamedPatient: "Unnamed",
+    refresh: "Refresh",
+    refreshing: "Refreshing...",
+    exportReport: "Export Report",
+    reportFetchWarning: "Report fetch warning",
+    dataType: {
+      note: "notes",
+      notes: "notes",
+      lab: "labs",
+      labs: "labs",
+      vital: "vitals",
+      vitals: "vitals",
+      unknown: "unknown",
+    },
+    severity: {
+      LOW: "LOW",
+      MEDIUM: "MEDIUM",
+      HIGH: "HIGH",
+      CRITICAL: "CRITICAL",
+      UNKNOWN: "UNKNOWN",
+    },
+    doctorHeader: {
+      eyebrow: "Deep Evidence Analysis",
+      title: "Cardiological Risk & Clinical Reasoning",
+      subtitle: "Comprehensive RAG-based synthesis of patient historical data versus current diagnostic trends.",
+    },
+    patientHeader: {
+      eyebrow: "Surgical Unit 4B  Trauma Level 1",
+      title: "Patient Diagnostic Overview",
+    },
+    patientNav: {
+      diagnostics: "Diagnostics",
+      analytics: "Analytics",
+      family: "Family Communication",
+      laboratory: "Laboratory",
+      settings: "Settings",
+      myReport: "My Report",
+      securityControls: "SECURITY CONTROLS ENABLED",
+      systemStatus: "SYSTEM STATUS: 12MS",
+      support: "SUPPORT",
+      copyright: "(c) 2024 SANJEEVANI. PRECISION GRADE AI.",
+    },
+    patientDashboard: {
+      activeVitals: "Active Vitals",
+      heartRate: "Heart Rate",
+      bloodPressure: "Blood Pressure",
+      coreTemp: "Core Temp",
+      clinicalInsight: "Clinical Insight",
+      noCriticalRisk: "No critical risk currently recorded.",
+      awaitingRecommendation: "Awaiting latest model output for recommendation.",
+      doctorSummary: "Doctor Summary",
+      noDoctorSummary: "No doctor summary available for selected patient.",
+      labHistory: "Lab History",
+      date: "Date",
+      test: "Test",
+      value: "Value",
+      noLabs: "No labs available.",
+      careVaccination: "Care Team & Vaccinations",
+      careTeam: "Care Team",
+      noCareTeam: "No care team records found.",
+      roleFallback: "Role",
+      unknown: "Unknown",
+      vaccinations: "Vaccinations",
+      influenza: "Influenza",
+      pneumococcal: "Pneumococcal",
+      covidBooster: "COVID Booster",
+      completed: "Completed",
+      due: "Due",
+      trendTitle: "Disease Progression Timeline",
+      trendSubtitle: "24-Hour Multi-variant Vital Analysis",
+    },
+    familyPage: {
+      eyebrow: "Family Communication",
+      title: "Last 12 Hours Summary",
+      english: "English",
+      regionalUnavailable: "Regional translation not available yet. Please run analysis again.",
+      familyUnavailable: "Family summary not available yet. Please run analysis again.",
+      safety: "This section is written for non-medical family communication. Clinical decisions must always follow physician guidance.",
+    },
+  },
+  hi: {
+    languageLabel: "भाषा",
+    languages: { en: "English", hi: "हिन्दी", mr: "मराठी" },
+    doctorTitle: "डॉक्टर विश्लेषण",
+    patientTitle: "मरीज विश्लेषण",
+    latestLabValues: "नवीनतम लैब मान",
+    riskSeverityDistribution: "जोखिम गंभीरता वितरण",
+    ingestedDataSources: "इंजेस्ट किए गए डेटा स्रोत",
+    patientLabel: "मरीज",
+    selectPatient: "मरीज चुनें",
+    unnamedPatient: "अज्ञात",
+    refresh: "रीफ्रेश",
+    refreshing: "रीफ्रेश हो रहा है...",
+    exportReport: "रिपोर्ट एक्सपोर्ट करें",
+    reportFetchWarning: "रिपोर्ट चेतावनी",
+    dataType: {
+      note: "नोट्स",
+      notes: "नोट्स",
+      lab: "लैब",
+      labs: "लैब",
+      vital: "वाइटल्स",
+      vitals: "वाइटल्स",
+      unknown: "अज्ञात",
+    },
+    severity: {
+      LOW: "कम",
+      MEDIUM: "मध्यम",
+      HIGH: "उच्च",
+      CRITICAL: "गंभीर",
+      UNKNOWN: "अज्ञात",
+    },
+    doctorHeader: {
+      eyebrow: "गहन साक्ष्य विश्लेषण",
+      title: "हृदय जोखिम और क्लिनिकल रीजनिंग",
+      subtitle: "मरीज के ऐतिहासिक डेटा और वर्तमान डायग्नोस्टिक रुझानों का व्यापक RAG-आधारित विश्लेषण।",
+    },
+    patientHeader: {
+      eyebrow: "सर्जिकल यूनिट 4B  ट्रॉमा लेवल 1",
+      title: "मरीज निदान अवलोकन",
+    },
+    patientNav: {
+      diagnostics: "निदान",
+      analytics: "विश्लेषण",
+      family: "परिवार संवाद",
+      laboratory: "प्रयोगशाला",
+      settings: "सेटिंग्स",
+      myReport: "मेरी रिपोर्ट",
+      securityControls: "सुरक्षा नियंत्रण सक्षम",
+      systemStatus: "सिस्टम स्थिति: 12एमएस",
+      support: "सहायता",
+      copyright: "(c) 2024 SANJEEVANI. PRECISION GRADE AI.",
+    },
+    patientDashboard: {
+      activeVitals: "सक्रिय वाइटल्स",
+      heartRate: "हृदय गति",
+      bloodPressure: "रक्तचाप",
+      coreTemp: "मुख्य तापमान",
+      clinicalInsight: "क्लिनिकल इनसाइट",
+      noCriticalRisk: "फिलहाल कोई गंभीर जोखिम दर्ज नहीं है।",
+      awaitingRecommendation: "सिफारिश के लिए नवीनतम मॉडल आउटपुट की प्रतीक्षा है।",
+      doctorSummary: "डॉक्टर सारांश",
+      noDoctorSummary: "चुने गए मरीज के लिए डॉक्टर सारांश उपलब्ध नहीं है।",
+      labHistory: "लैब इतिहास",
+      date: "तिथि",
+      test: "परीक्षण",
+      value: "मान",
+      noLabs: "कोई लैब उपलब्ध नहीं है।",
+      careVaccination: "केयर टीम और टीकाकरण",
+      careTeam: "केयर टीम",
+      noCareTeam: "केयर टीम के रिकॉर्ड नहीं मिले।",
+      roleFallback: "भूमिका",
+      unknown: "अज्ञात",
+      vaccinations: "टीकाकरण",
+      influenza: "इन्फ्लुएंजा",
+      pneumococcal: "न्यूमोकोकल",
+      covidBooster: "कोविड बूस्टर",
+      completed: "पूर्ण",
+      due: "देय",
+      trendTitle: "रोग प्रगति समयरेखा",
+      trendSubtitle: "24-घंटे बहु-परिवर्तनीय वाइटल विश्लेषण",
+    },
+    familyPage: {
+      eyebrow: "परिवार संवाद",
+      title: "पिछले 12 घंटों का सारांश",
+      english: "अंग्रेज़ी",
+      regionalUnavailable: "क्षेत्रीय अनुवाद अभी उपलब्ध नहीं है। कृपया पुनः विश्लेषण चलाएँ।",
+      familyUnavailable: "परिवार सारांश अभी उपलब्ध नहीं है। कृपया पुनः विश्लेषण चलाएँ।",
+      safety: "यह अनुभाग गैर-चिकित्सकीय पारिवारिक संवाद के लिए लिखा गया है। चिकित्सकीय निर्णय हमेशा डॉक्टर के मार्गदर्शन से ही लें।",
+    },
+  },
+  mr: {
+    languageLabel: "भाषा",
+    languages: { en: "English", hi: "हिन्दी", mr: "मराठी" },
+    doctorTitle: "डॉक्टर विश्लेषण",
+    patientTitle: "रुग्ण विश्लेषण",
+    latestLabValues: "ताज्या लॅब मूल्ये",
+    riskSeverityDistribution: "जोखीम तीव्रता वितरण",
+    ingestedDataSources: "इंजेस्ट केलेले डेटा स्रोत",
+    patientLabel: "रुग्ण",
+    selectPatient: "रुग्ण निवडा",
+    unnamedPatient: "अज्ञात",
+    refresh: "रिफ्रेश",
+    refreshing: "रिफ्रेश होत आहे...",
+    exportReport: "अहवाल एक्सपोर्ट करा",
+    reportFetchWarning: "अहवाल सूचना",
+    dataType: {
+      note: "नोट्स",
+      notes: "नोट्स",
+      lab: "लॅब",
+      labs: "लॅब",
+      vital: "व्हायटल्स",
+      vitals: "व्हायटल्स",
+      unknown: "अज्ञात",
+    },
+    severity: {
+      LOW: "कमी",
+      MEDIUM: "मध्यम",
+      HIGH: "उच्च",
+      CRITICAL: "गंभीर",
+      UNKNOWN: "अज्ञात",
+    },
+    doctorHeader: {
+      eyebrow: "सखोल पुरावा विश्लेषण",
+      title: "हृदयविकार जोखीम आणि क्लिनिकल तर्क",
+      subtitle: "रुग्णाच्या ऐतिहासिक डेटाचा आणि सध्याच्या डायग्नोस्टिक ट्रेंड्सचा सर्वसमावेशक RAG-आधारित विश्लेषण।",
+    },
+    patientHeader: {
+      eyebrow: "शल्यचिकित्सा युनिट 4B  ट्रॉमा लेव्हल 1",
+      title: "रुग्ण निदान आढावा",
+    },
+    patientNav: {
+      diagnostics: "निदान",
+      analytics: "विश्लेषण",
+      family: "कुटुंब संवाद",
+      laboratory: "प्रयोगशाळा",
+      settings: "सेटिंग्स",
+      myReport: "माझा अहवाल",
+      securityControls: "सुरक्षा नियंत्रण सक्षम",
+      systemStatus: "सिस्टम स्थिती: 12एमएस",
+      support: "सपोर्ट",
+      copyright: "(c) 2024 SANJEEVANI. PRECISION GRADE AI.",
+    },
+    patientDashboard: {
+      activeVitals: "सक्रिय व्हायटल्स",
+      heartRate: "हृदय गती",
+      bloodPressure: "रक्तदाब",
+      coreTemp: "मुख्य तापमान",
+      clinicalInsight: "क्लिनिकल इनसाइट",
+      noCriticalRisk: "सध्या कोणताही गंभीर धोका नोंदलेला नाही.",
+      awaitingRecommendation: "शिफारसीसाठी नवीनतम मॉडेल आउटपुटची प्रतीक्षा आहे.",
+      doctorSummary: "डॉक्टर सारांश",
+      noDoctorSummary: "निवडलेल्या रुग्णासाठी डॉक्टर सारांश उपलब्ध नाही.",
+      labHistory: "लॅब इतिहास",
+      date: "दिनांक",
+      test: "चाचणी",
+      value: "मूल्य",
+      noLabs: "लॅब डेटा उपलब्ध नाही.",
+      careVaccination: "केअर टीम आणि लसीकरण",
+      careTeam: "केअर टीम",
+      noCareTeam: "केअर टीमची नोंद आढळली नाही.",
+      roleFallback: "भूमिका",
+      unknown: "अज्ञात",
+      vaccinations: "लसीकरण",
+      influenza: "इन्फ्लूएंझा",
+      pneumococcal: "न्युमोकोकल",
+      covidBooster: "कोविड बूस्टर",
+      completed: "पूर्ण",
+      due: "बाकी",
+      trendTitle: "रोग प्रगती वेळरेखा",
+      trendSubtitle: "24-तास बहुवैविध्यपूर्ण व्हायटल विश्लेषण",
+    },
+    familyPage: {
+      eyebrow: "कुटुंब संवाद",
+      title: "मागील 12 तासांचा सारांश",
+      english: "इंग्रजी",
+      regionalUnavailable: "प्रादेशिक भाषांतर अद्याप उपलब्ध नाही. कृपया पुन्हा विश्लेषण चालवा.",
+      familyUnavailable: "कुटुंब सारांश अद्याप उपलब्ध नाही. कृपया पुन्हा विश्लेषण चालवा.",
+      safety: "हा विभाग वैद्यकीय नसलेल्या कुटुंब संवादासाठी आहे. वैद्यकीय निर्णय नेहमी डॉक्टरांच्या मार्गदर्शनानेच घ्यावेत.",
+    },
+  },
+};
+
+function useAnalyticsLanguage() {
+  const [analyticsLanguage, setAnalyticsLanguage] = useState(() => {
+    if (typeof window === "undefined") {
+      return "en";
+    }
+    const saved = String(window.localStorage.getItem(ANALYTICS_LANGUAGE_KEY) || "").toLowerCase();
+    if (saved === "hi" || saved === "mr" || saved === "en") {
+      return saved;
+    }
+    return "en";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(ANALYTICS_LANGUAGE_KEY, analyticsLanguage);
+  }, [analyticsLanguage]);
+
+  return [analyticsLanguage, setAnalyticsLanguage];
+}
 
 function getPublicBaseUrl() {
   const fromEnv = String(import.meta.env.VITE_PUBLIC_APP_URL || "").trim();
@@ -374,7 +670,7 @@ function getRoleNav(role) {
   return ["Dashboard", "Diagnostics", "Analytics"];
 }
 
-function getRoleTabs(role) {
+function getRoleTabs(role, labels) {
   if (role === "staff") {
     return [
       { label: "New Patient", to: "/staff/new-patient" },
@@ -383,11 +679,12 @@ function getRoleTabs(role) {
     ];
   }
   if (role === "patient") {
+    const patientLabels = labels || {};
     return [
-      { label: "Diagnostics", to: "/patient/diagnostics" },
-      { label: "Analytics", to: "/patient/analytics" },
-      { label: "Family Communication", to: "/patient/family" },
-      { label: "Laboratory", to: "/patient/labs" },
+      { label: patientLabels.diagnostics || "Diagnostics", to: "/patient/diagnostics" },
+      { label: patientLabels.analytics || "Analytics", to: "/patient/analytics" },
+      { label: patientLabels.family || "Family Communication", to: "/patient/family" },
+      { label: patientLabels.laboratory || "Laboratory", to: "/patient/labs" },
     ];
   }
   return [
@@ -491,10 +788,10 @@ function useCurrentReport(patientId) {
   return { report, setReport, refreshReport, loading, error };
 }
 
-function TopBar({ role, authUser }) {
+function TopBar({ role, authUser, localizedNav }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const nav = getRoleTabs(role);
+  const nav = getRoleTabs(role, localizedNav);
 
   return (
     <header className="st-topbar">
@@ -523,7 +820,7 @@ function TopBar({ role, authUser }) {
   );
 }
 
-function SideBar({ onLogout, authUser, role }) {
+function SideBar({ onLogout, authUser, role, localizedNav }) {
   const location = useLocation();
 
   const navItems = {
@@ -540,11 +837,11 @@ function SideBar({ onLogout, authUser, role }) {
       { label: "Settings", to: "/settings", icon: "settings" },
     ],
     patient: [
-      { label: "Diagnostics", to: "/patient/diagnostics", icon: "biotech" },
-      { label: "Analytics", to: "/patient/analytics", icon: "insights" },
-      { label: "Family Communication", to: "/patient/family", icon: "record_voice_over" },
-      { label: "Laboratory", to: "/patient/labs", icon: "science" },
-      { label: "Settings", to: "/settings", icon: "settings" },
+      { label: localizedNav?.diagnostics || "Diagnostics", to: "/patient/diagnostics", icon: "biotech" },
+      { label: localizedNav?.analytics || "Analytics", to: "/patient/analytics", icon: "insights" },
+      { label: localizedNav?.family || "Family Communication", to: "/patient/family", icon: "record_voice_over" },
+      { label: localizedNav?.laboratory || "Laboratory", to: "/patient/labs", icon: "science" },
+      { label: localizedNav?.settings || "Settings", to: "/settings", icon: "settings" },
     ],
   };
 
@@ -554,6 +851,9 @@ function SideBar({ onLogout, authUser, role }) {
     staff: { to: "/staff/new-patient", label: "New Patient" },
     patient: { to: "/patient/diagnostics", label: "My Report" },
   };
+  if (role === "patient" && localizedNav?.myReport) {
+    primaryAction.patient.label = localizedNav.myReport;
+  }
   const action = primaryAction[role] || primaryAction.staff;
 
   return (
@@ -594,31 +894,37 @@ function SideBar({ onLogout, authUser, role }) {
   );
 }
 
-function Shell({ role, onLogout, authUser, children }) {
+function Shell({ role, onLogout, authUser, children, localizedNav }) {
   return (
     <div className="st-app">
-      <TopBar role={role} authUser={authUser} />
-      <SideBar onLogout={onLogout} authUser={authUser} role={role} />
+      <TopBar role={role} authUser={authUser} localizedNav={localizedNav} />
+      <SideBar onLogout={onLogout} authUser={authUser} role={role} localizedNav={localizedNav} />
       <main className="st-main">{children}</main>
       <footer className="st-footer">
-        <span>SECURITY CONTROLS ENABLED</span>
-        <span>SYSTEM STATUS: 12MS</span>
-        <span>SUPPORT</span>
-        <span>(c) 2024 SANJEEVANI. PRECISION GRADE AI.</span>
+        <span>{localizedNav?.securityControls || "SECURITY CONTROLS ENABLED"}</span>
+        <span>{localizedNav?.systemStatus || "SYSTEM STATUS: 12MS"}</span>
+        <span>{localizedNav?.support || "SUPPORT"}</span>
+        <span>{localizedNav?.copyright || "(c) 2024 SANJEEVANI. PRECISION GRADE AI."}</span>
       </footer>
     </div>
   );
 }
 
-function PatientSelect({ patients, selected, setSelected }) {
+function PatientSelect({ patients, selected, setSelected, labels }) {
+  const ui = labels || {
+    patientLabel: "Patient",
+    selectPatient: "Select patient",
+    unnamedPatient: "Unnamed",
+  };
+
   return (
     <div className="st-select-row">
-      <label>Patient</label>
+      <label>{ui.patientLabel}</label>
       <select value={selected || ""} onChange={(e) => setSelected(e.target.value)}>
-        <option value="">Select patient</option>
+        <option value="">{ui.selectPatient}</option>
         {patients.map((p) => (
           <option key={p.patient_id} value={p.patient_id}>
-            {p.name || "Unnamed"} ({p.patient_id})
+            {p.name || ui.unnamedPatient} ({p.patient_id})
           </option>
         ))}
       </select>
@@ -626,13 +932,18 @@ function PatientSelect({ patients, selected, setSelected }) {
   );
 }
 
-function TrendCard({ data }) {
+function TrendCard({ data, labels }) {
+  const ui = labels || {
+    trendTitle: "Disease Progression Timeline",
+    trendSubtitle: "24-Hour Multi-variant Vital Analysis",
+  };
+
   return (
     <section className="st-card st-card-hero">
       <div className="st-title-row">
         <div>
-          <h3>Disease Progression Timeline</h3>
-          <p>24-Hour Multi-variant Vital Analysis</p>
+          <h3>{ui.trendTitle}</h3>
+          <p>{ui.trendSubtitle}</p>
         </div>
       </div>
       <div className="chart-shell">
@@ -717,16 +1028,52 @@ function useIntegratedAnalytics(patientId, report) {
   return analytics;
 }
 
-function AnalyticsCharts({ patientId, report, title = "Clinical Analytics" }) {
+function AnalyticsCharts({ patientId, report, title, analyticsLanguage, setAnalyticsLanguage, showLanguageSwitch = true }) {
   const { sourceBreakdown, severityBreakdown, latestLabBars } = useIntegratedAnalytics(patientId, report);
   const pieColors = ["#004ac6", "#f59e0b", "#dc2626", "#16a34a", "#7c3aed"];
+  const ui = ANALYTICS_I18N[analyticsLanguage] || ANALYTICS_I18N.en;
+
+  const localizedSource = sourceBreakdown.map((item) => {
+    const key = String(item.name || "unknown").toLowerCase();
+    return {
+      ...item,
+      name: ui.dataType[key] || ui.dataType.unknown,
+    };
+  });
+
+  const localizedSeverity = severityBreakdown.map((item) => {
+    const key = String(item.name || "UNKNOWN").toUpperCase();
+    return {
+      ...item,
+      name: ui.severity[key] || ui.severity.UNKNOWN,
+    };
+  });
 
   return (
     <section className="st-card">
-      <h3>{title}</h3>
+      <div className="analytics-head">
+        <h3>{title}</h3>
+        {showLanguageSwitch ? (
+          <div className="analytics-language-switch">
+            <label htmlFor="analytics-language">{ui.languageLabel}</label>
+            <select
+              id="analytics-language"
+              value={analyticsLanguage}
+              onChange={(e) => {
+                const lang = String(e.target.value || "en").toLowerCase();
+                setAnalyticsLanguage(lang === "hi" || lang === "mr" || lang === "en" ? lang : "en");
+              }}
+            >
+              <option value="en">{ui.languages.en}</option>
+              <option value="hi">{ui.languages.hi}</option>
+              <option value="mr">{ui.languages.mr}</option>
+            </select>
+          </div>
+        ) : null}
+      </div>
       <div className="analytics-grid">
         <div className="chart-shell">
-          <h4 className="summary-head">Latest Lab Values</h4>
+          <h4 className="summary-head">{ui.latestLabValues}</h4>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={latestLabBars}>
               <CartesianGrid strokeDasharray="3 3" stroke="#edf1f7" />
@@ -739,11 +1086,11 @@ function AnalyticsCharts({ patientId, report, title = "Clinical Analytics" }) {
         </div>
 
         <div className="chart-shell">
-          <h4 className="summary-head">Risk Severity Distribution</h4>
+          <h4 className="summary-head">{ui.riskSeverityDistribution}</h4>
           <ResponsiveContainer width="100%" height={280}>
             <PieChart>
-              <Pie data={severityBreakdown} dataKey="value" nameKey="name" outerRadius={96} label>
-                {severityBreakdown.map((entry, index) => (
+              <Pie data={localizedSeverity} dataKey="value" nameKey="name" outerRadius={96} label>
+                {localizedSeverity.map((entry, index) => (
                   <Cell key={`${entry.name}-${index}`} fill={pieColors[index % pieColors.length]} />
                 ))}
               </Pie>
@@ -755,9 +1102,9 @@ function AnalyticsCharts({ patientId, report, title = "Clinical Analytics" }) {
       </div>
 
       <div className="chart-shell">
-        <h4 className="summary-head">Ingested Data Sources</h4>
+        <h4 className="summary-head">{ui.ingestedDataSources}</h4>
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={sourceBreakdown}>
+          <BarChart data={localizedSource}>
             <CartesianGrid strokeDasharray="3 3" stroke="#edf1f7" />
             <XAxis dataKey="name" />
             <YAxis />
@@ -912,33 +1259,41 @@ function getFamilyCommunication(report) {
   };
 }
 
-function FamilyCommunicationView({ report, patientName }) {
+function FamilyCommunicationView({ report, patientName, labels }) {
   const family = getFamilyCommunication(report);
+  const ui = labels || {
+    eyebrow: "Family Communication",
+    title: "Last 12 Hours Summary",
+    english: "English",
+    familyUnavailable: "Family summary not available yet. Please run analysis again.",
+    regionalUnavailable: "Regional translation not available yet. Please run analysis again.",
+    safety: "This section is written for non-medical family communication. Clinical decisions must always follow physician guidance.",
+  };
 
   return (
     <section className="st-card final-report-shell">
       <div className="final-head">
         <div>
-          <p className="eyebrow">Family Communication</p>
-          <h3>Last 12 Hours Summary</h3>
+          <p className="eyebrow">{ui.eyebrow}</p>
+          <h3>{ui.title}</h3>
           <p className="muted">Patient: {patientName || "Unknown"} - Version {report?.report_version || 1}</p>
         </div>
       </div>
 
       <div className="final-grid">
         <article className="final-card">
-          <h4>English</h4>
-          <p>{family.english || "Family summary not available yet. Please run analysis again."}</p>
+          <h4>{ui.english}</h4>
+          <p>{family.english || ui.familyUnavailable}</p>
         </article>
 
         <article className="final-card">
           <h4>{family.regional_language_name}</h4>
-          <p>{family.regional_language || "Regional translation not available yet. Please run analysis again."}</p>
+          <p>{family.regional_language || ui.regionalUnavailable}</p>
         </article>
       </div>
 
       <p className="safety-note">
-        This section is written for non-medical family communication. Clinical decisions must always follow physician guidance.
+        {ui.safety}
       </p>
     </section>
   );
@@ -1145,6 +1500,7 @@ function SettingsPage({ authUser, onLogout, onPinChanged }) {
 
 function DoctorPortal({ onLogout, authUser }) {
   const location = useLocation();
+  const [analyticsLanguage, setAnalyticsLanguage] = useAnalyticsLanguage();
   const { patients, selected, setSelected } = usePatients();
   const { report, refreshReport, loading, error } = useCurrentReport(selected);
   const [reasoning, setReasoning] = useState("");
@@ -1197,6 +1553,12 @@ function DoctorPortal({ onLogout, authUser }) {
   const isDiagnosticsPage = location.pathname.startsWith("/doctor/diagnostics");
   const isDashboardPage = location.pathname.startsWith("/doctor/dashboard");
   const isFamilyPage = location.pathname.startsWith("/doctor/family");
+  const analyticsUi = ANALYTICS_I18N[analyticsLanguage] || ANALYTICS_I18N.en;
+  const headerEyebrow = isAnalyticsPage ? analyticsUi.doctorHeader.eyebrow : "Deep Evidence Analysis";
+  const headerTitle = isAnalyticsPage ? analyticsUi.doctorHeader.title : "Cardiological Risk & Clinical Reasoning";
+  const headerSubtitle = isAnalyticsPage
+    ? analyticsUi.doctorHeader.subtitle
+    : "Comprehensive RAG-based synthesis of patient historical data versus current diagnostic trends.";
   const dashboardStats = [
     { label: "Risk Flags", value: riskFlags.length },
     { label: "Outlier Alerts", value: outliers.length },
@@ -1208,27 +1570,50 @@ function DoctorPortal({ onLogout, authUser }) {
     <Shell role="doctor" onLogout={onLogout} authUser={authUser}>
       <div className="st-page-header">
         <div>
-          <p className="eyebrow">Deep Evidence Analysis</p>
-          <h1>Cardiological Risk & Clinical Reasoning</h1>
-          <p>Comprehensive RAG-based synthesis of patient historical data versus current diagnostic trends.</p>
+          <p className="eyebrow">{headerEyebrow}</p>
+          <h1>{headerTitle}</h1>
+          <p>{headerSubtitle}</p>
         </div>
         <div className="btn-row">
           <button type="button" className="st-soft-btn" onClick={refreshReport} disabled={loading || !selected}>
-            {loading ? "Refreshing..." : "Refresh"}
+            {loading ? (isAnalyticsPage ? analyticsUi.refreshing : "Refreshing...") : (isAnalyticsPage ? analyticsUi.refresh : "Refresh")}
           </button>
-          <button type="button" className="st-soft-btn" onClick={exportReport}>Export Report</button>
+          <button type="button" className="st-soft-btn" onClick={exportReport}>
+            {isAnalyticsPage ? analyticsUi.exportReport : "Export Report"}
+          </button>
         </div>
       </div>
 
-      {error ? <p className="muted status-line">Report fetch warning: {error}</p> : null}
+      {error ? (
+        <p className="muted status-line">
+          {isAnalyticsPage ? analyticsUi.reportFetchWarning : "Report fetch warning"}: {error}
+        </p>
+      ) : null}
 
-      <PatientSelect patients={patients} selected={selected} setSelected={setSelected} />
+      <PatientSelect
+        patients={patients}
+        selected={selected}
+        setSelected={setSelected}
+        labels={isAnalyticsPage ? {
+          patientLabel: analyticsUi.patientLabel,
+          selectPatient: analyticsUi.selectPatient,
+          unnamedPatient: analyticsUi.unnamedPatient,
+        } : undefined}
+      />
 
       {isDiagnosticsPage ? <FinalReportView report={report} patientName={selectedPatient?.name} /> : null}
 
       {isFamilyPage ? <FamilyCommunicationView report={report} patientName={selectedPatient?.name} /> : null}
 
-      {isAnalyticsPage ? <AnalyticsCharts patientId={selected} report={report} title="Doctor Analytics" /> : null}
+      {isAnalyticsPage ? (
+        <AnalyticsCharts
+          patientId={selected}
+          report={report}
+          title={analyticsUi.doctorTitle}
+          analyticsLanguage={analyticsLanguage}
+          setAnalyticsLanguage={setAnalyticsLanguage}
+        />
+      ) : null}
 
       {isDashboardPage ? <div className="st-grid-12">
         {dashboardStats.map((metric) => (
@@ -1616,6 +2001,7 @@ function StaffPortal({ onLogout, authUser }) {
 
 function PatientPortal({ onLogout, authUser }) {
   const location = useLocation();
+  const [analyticsLanguage, setAnalyticsLanguage] = useAnalyticsLanguage();
   const [patients, setPatients] = useState([]);
   const [selected, setSelected] = useState("");
   const { report, refreshReport, loading, error } = useCurrentReport(selected);
@@ -1702,61 +2088,112 @@ function PatientPortal({ onLogout, authUser }) {
   const isAnalyticsPage = location.pathname.startsWith("/patient/analytics");
   const isFamilyPage = location.pathname.startsWith("/patient/family");
   const isLabsPage = location.pathname.startsWith("/patient/labs");
+  const analyticsUi = ANALYTICS_I18N[analyticsLanguage] || ANALYTICS_I18N.en;
+  const patientUi = analyticsUi.patientDashboard;
+  const familyUi = analyticsUi.familyPage;
+  const navUi = analyticsUi.patientNav;
+  const patientHeaderEyebrow = analyticsUi.patientHeader.eyebrow;
+  const patientHeaderTitle = analyticsUi.patientHeader.title;
 
   return (
-    <Shell role="patient" onLogout={onLogout} authUser={authUser}>
+    <Shell role="patient" onLogout={onLogout} authUser={authUser} localizedNav={navUi}>
       <div className="st-page-header">
         <div>
-          <p className="eyebrow">Surgical Unit 4B  Trauma Level 1</p>
-          <h1>Patient Diagnostic Overview</h1>
+          <p className="eyebrow">{patientHeaderEyebrow}</p>
+          <h1>{patientHeaderTitle}</h1>
         </div>
         <div className="btn-row">
+          <div className="analytics-language-switch">
+            <label htmlFor="patient-dashboard-language">{analyticsUi.languageLabel}</label>
+            <select
+              id="patient-dashboard-language"
+              value={analyticsLanguage}
+              onChange={(e) => {
+                const lang = String(e.target.value || "en").toLowerCase();
+                setAnalyticsLanguage(lang === "hi" || lang === "mr" || lang === "en" ? lang : "en");
+              }}
+            >
+              <option value="en">{analyticsUi.languages.en}</option>
+              <option value="hi">{analyticsUi.languages.hi}</option>
+              <option value="mr">{analyticsUi.languages.mr}</option>
+            </select>
+          </div>
           <button type="button" className="st-soft-btn" onClick={refreshReport} disabled={loading || !selected}>
-            {loading ? "Refreshing..." : "Refresh"}
+            {loading ? analyticsUi.refreshing : analyticsUi.refresh}
           </button>
         </div>
       </div>
 
-      {error ? <p className="muted status-line">Report fetch warning: {error}</p> : null}
+      {error ? (
+        <p className="muted status-line">
+          {analyticsUi.reportFetchWarning}: {error}
+        </p>
+      ) : null}
 
-      {patients.length > 1 ? <PatientSelect patients={patients} selected={selected} setSelected={setSelected} /> : null}
+      {patients.length > 1 ? (
+        <PatientSelect
+          patients={patients}
+          selected={selected}
+          setSelected={setSelected}
+          labels={{
+            patientLabel: analyticsUi.patientLabel,
+            selectPatient: analyticsUi.selectPatient,
+            unnamedPatient: analyticsUi.unnamedPatient,
+          }}
+        />
+      ) : null}
 
       {isDiagnosticsPage ? <div className="st-grid-12">
         <div className="col-8">
-          <TrendCard data={trendData} />
+          <TrendCard data={trendData} labels={patientUi} />
         </div>
 
         <div className="col-4">
           <section className="st-card vital-card">
-            <h3>Active Vitals</h3>
+            <h3>{patientUi.activeVitals}</h3>
             <div className="vital-list">
-              <div><span>Heart Rate</span><strong>{getVal(report?.disease_timeline?.at(-1)?.vitals, ["heart_rate_bpm"]) || "72"} BPM</strong></div>
-              <div><span>Blood Pressure</span><strong>{report?.disease_timeline?.at(-1)?.vitals?.blood_pressure_mmhg || "118/76"}</strong></div>
-              <div><span>Core Temp</span><strong>{getVal(report?.disease_timeline?.at(-1)?.vitals, ["temperature_c"]) || "36.8"} C</strong></div>
+              <div><span>{patientUi.heartRate}</span><strong>{getVal(report?.disease_timeline?.at(-1)?.vitals, ["heart_rate_bpm"]) || "72"} BPM</strong></div>
+              <div><span>{patientUi.bloodPressure}</span><strong>{report?.disease_timeline?.at(-1)?.vitals?.blood_pressure_mmhg || "118/76"}</strong></div>
+              <div><span>{patientUi.coreTemp}</span><strong>{getVal(report?.disease_timeline?.at(-1)?.vitals, ["temperature_c"]) || "36.8"} C</strong></div>
             </div>
           </section>
 
           <section className="insight-card">
-            <p className="tag">Clinical Insight</p>
-            <h3>{risk?.risk || "No critical risk currently recorded."}</h3>
-            <p>{risk?.recommended_action || "Awaiting latest model output for recommendation."}</p>
+            <p className="tag">{patientUi.clinicalInsight}</p>
+            <h3>{risk?.risk || patientUi.noCriticalRisk}</h3>
+            <p>{risk?.recommended_action || patientUi.awaitingRecommendation}</p>
           </section>
         </div>
       </div> : null}
 
-      {isAnalyticsPage ? <AnalyticsCharts patientId={selected} report={report} title="Patient Analytics" /> : null}
+      {isAnalyticsPage ? (
+        <AnalyticsCharts
+          patientId={selected}
+          report={report}
+          title={analyticsUi.patientTitle}
+          analyticsLanguage={analyticsLanguage}
+          setAnalyticsLanguage={setAnalyticsLanguage}
+          showLanguageSwitch={false}
+        />
+      ) : null}
 
-      {isFamilyPage ? <FamilyCommunicationView report={report} patientName={patients.find((p) => p.patient_id === selected)?.name} /> : null}
+      {isFamilyPage ? (
+        <FamilyCommunicationView
+          report={report}
+          patientName={patients.find((p) => p.patient_id === selected)?.name}
+          labels={familyUi}
+        />
+      ) : null}
 
       {isLabsPage ? <div className="st-grid-12">
         <section className="st-card col-5">
-          <h3>Lab History</h3>
+          <h3>{patientUi.labHistory}</h3>
           <table className="st-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Test</th>
-                <th>Value</th>
+                <th>{patientUi.date}</th>
+                <th>{patientUi.test}</th>
+                <th>{patientUi.value}</th>
               </tr>
             </thead>
             <tbody>
@@ -1770,7 +2207,7 @@ function PatientPortal({ onLogout, authUser }) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3}>No labs available.</td>
+                  <td colSpan={3}>{patientUi.noLabs}</td>
                 </tr>
               )}
             </tbody>
@@ -1778,41 +2215,41 @@ function PatientPortal({ onLogout, authUser }) {
         </section>
 
         <section className="st-card col-7">
-          <h3>Care Team & Vaccinations</h3>
+          <h3>{patientUi.careVaccination}</h3>
           <div className="care-grid">
             <div>
-              <h4>Care Team</h4>
+              <h4>{patientUi.careTeam}</h4>
               <ul>
                 {careTeam.length ? (
                   careTeam.map((c, idx) => (
                     <li key={`${c.full_name || "member"}-${idx}`}>
-                      <strong>{c.role || "Role"}</strong>
-                      <span>{c.full_name || "Unknown"}</span>
+                      <strong>{c.role || patientUi.roleFallback}</strong>
+                      <span>{c.full_name || patientUi.unknown}</span>
                     </li>
                   ))
                 ) : (
-                  <li><span>No care team records found.</span></li>
+                  <li><span>{patientUi.noCareTeam}</span></li>
                 )}
               </ul>
             </div>
             <div>
-              <h4>Vaccinations</h4>
+              <h4>{patientUi.vaccinations}</h4>
               <ul>
-                <li><strong>Influenza</strong><span>Completed</span></li>
-                <li><strong>Pneumococcal</strong><span>Completed</span></li>
-                <li><strong>COVID Booster</strong><span>Due</span></li>
+                <li><strong>{patientUi.influenza}</strong><span>{patientUi.completed}</span></li>
+                <li><strong>{patientUi.pneumococcal}</strong><span>{patientUi.completed}</span></li>
+                <li><strong>{patientUi.covidBooster}</strong><span>{patientUi.due}</span></li>
               </ul>
             </div>
           </div>
-          <h4 className="summary-head">Doctor Summary</h4>
-          <p className="summary-text">{report?.reasoning || "No doctor summary available for selected patient."}</p>
+          <h4 className="summary-head">{patientUi.doctorSummary}</h4>
+          <p className="summary-text">{report?.reasoning || patientUi.noDoctorSummary}</p>
         </section>
       </div> : null}
 
       {isDiagnosticsPage ? (
         <section className="st-card">
-          <h3>Doctor Summary</h3>
-          <p className="summary-text">{report?.reasoning || "No doctor summary available for selected patient."}</p>
+          <h3>{patientUi.doctorSummary}</h3>
+          <p className="summary-text">{report?.reasoning || patientUi.noDoctorSummary}</p>
         </section>
       ) : null}
     </Shell>

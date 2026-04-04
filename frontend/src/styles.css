@@ -316,6 +316,39 @@ h4,
   color: var(--on-variant);
 }
 
+.analytics-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.analytics-head h3 {
+  margin: 0;
+}
+
+.analytics-language-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analytics-language-switch label {
+  font-size: 0.82rem;
+  color: #4b5568;
+  font-weight: 700;
+}
+
+.analytics-language-switch select {
+  border: 1px solid rgba(195, 198, 215, 0.8);
+  border-radius: 10px;
+  background: #fff;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  color: #1f2937;
+}
+
 .eyebrow {
   margin: 0;
   color: var(--primary);
