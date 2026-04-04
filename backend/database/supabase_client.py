@@ -17,6 +17,7 @@ import config
 
 
 _client: Optional[Client] = None
+_reports_has_family_communication: Optional[bool] = None
 
 
 def get_client() -> Client:
@@ -183,6 +184,8 @@ def save_report(
     Tries a full insert first; if PGRST204 (column not found), retries
     with a minimal payload so the report always saves.
     """
+    global _reports_has_family_communication
+
     import logging
     log = logging.getLogger(__name__)
     client = get_client()
@@ -229,23 +232,37 @@ def save_report(
         "is_current":        True,
     }
 
+    base_payload = {k: v for k, v in full_payload.items() if k != "family_communication"}
+    insert_payload = full_payload if _reports_has_family_communication is not False else base_payload
+
     if current_report:
         client.table("reports").update({"is_current": False}).eq("id", current_report["id"]).execute()
 
     try:
-        response = client.table("reports").insert(full_payload).execute()
+        response = client.table("reports").insert(insert_payload).execute()
+        if _reports_has_family_communication is None:
+            _reports_has_family_communication = True
         return response.data[0]
     except Exception as exc:
-        if "PGRST204" not in str(exc):
+        error_text = str(exc)
+        if "PGRST204" not in error_text:
             raise
-        log.warning(
-            "save_report: schema mismatch (%s). "
-            "Falling back to minimal payload. Run ALTER TABLE migrations to fix.", exc
-        )
+        if "family_communication" in error_text:
+            _reports_has_family_communication = False
+            log.warning(
+                "save_report: reports.family_communication missing (%s). "
+                "Using compatibility payload until DB migration is applied.",
+                exc,
+            )
+        else:
+            log.warning(
+                "save_report: schema mismatch (%s). "
+                "Falling back to minimal payload. Run ALTER TABLE migrations to fix.",
+                exc,
+            )
 
     try:
-        payload_no_family = {k: v for k, v in full_payload.items() if k != "family_communication"}
-        response = client.table("reports").insert(payload_no_family).execute()
+        response = client.table("reports").insert(base_payload).execute()
         row = response.data[0]
         row.setdefault("family_communication", family_communication or {})
         return row

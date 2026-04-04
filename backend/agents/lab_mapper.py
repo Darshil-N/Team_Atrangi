@@ -224,7 +224,7 @@ def _detect_outlier(
     else:
         n_std = abs(latest_val - mean_hist) / std_hist
 
-    if n_std < OUTLIER_STD_THRESHOLD:
+    if n_std <= OUTLIER_STD_THRESHOLD:
         return None  # Normal variation  not an outlier
 
     ref = _REFERENCE_RANGES.get(param)

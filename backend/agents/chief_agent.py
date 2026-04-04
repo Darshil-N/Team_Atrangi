@@ -241,12 +241,12 @@ LAB NARRATIVE:
       "diagnosis_updated": false
     }}
   ],
-  "family_communication": {
+    "family_communication": {{
     "english": "string",
     "regional_language": "string",
     "regional_language_name": "{config.FAMILY_REGIONAL_LANGUAGE_NAME}",
     "regional_language_code": "{config.FAMILY_REGIONAL_LANGUAGE_CODE}"
-  },
+    }},
   "diagnosis_updated": true or false,
   "reasoning": "string"
 }}"""
