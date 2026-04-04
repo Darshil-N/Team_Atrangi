@@ -2497,12 +2497,16 @@ function PatientPortal({ onLogout, authUser }) {
 
 function NfcPatientAccessPage() {
   const { patientId } = useParams();
+  const [analyticsLanguage, setAnalyticsLanguage] = useAnalyticsLanguage();
   const [doctorIdentifier, setDoctorIdentifier] = useState("");
   const [doctorPin, setDoctorPin] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState("");
   const [patient, setPatient] = useState(null);
   const [report, setReport] = useState(null);
+  const trendData = useMemo(() => getTrend(report), [report]);
+  const analyticsUi = ANALYTICS_I18N[analyticsLanguage] || ANALYTICS_I18N.en;
+  const patientUi = analyticsUi.patientDashboard;
 
   async function verifyDoctor(e) {
     e.preventDefault();
@@ -2551,7 +2555,7 @@ function NfcPatientAccessPage() {
 
   return (
     <div className="login-bg">
-      <div className="login-card settings-card">
+      <div className="login-card settings-card nfc-access-card">
         <p className="eyebrow">NFC Secure Access</p>
         <h1>Doctor Verification Required</h1>
         <p className="sub">Scan ID: {patientId}</p>
@@ -2583,6 +2587,27 @@ function NfcPatientAccessPage() {
           <div className="nfc-report-wrap">
             <h3>Patient: {patient.name || "Unknown"}</h3>
             <p className="muted">MRN: {patient.subject_id || "N/A"}</p>
+
+            {report ? (
+              <div className="st-grid-12">
+                <div className="col-12">
+                  <TrendCard data={trendData} labels={patientUi} />
+                </div>
+              </div>
+            ) : (
+              <p className="muted">No current report available yet. Run analysis to view timeline charts.</p>
+            )}
+
+            {report ? (
+              <AnalyticsCharts
+                patientId={patientId}
+                report={report}
+                title={analyticsUi.patientTitle}
+                analyticsLanguage={analyticsLanguage}
+                setAnalyticsLanguage={setAnalyticsLanguage}
+              />
+            ) : null}
+
             <FinalReportView report={report} patientName={patient.name} />
           </div>
         ) : null}
