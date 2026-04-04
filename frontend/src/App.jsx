@@ -72,7 +72,7 @@ const ANALYTICS_I18N = {
       family: "Family Communication",
       laboratory: "Laboratory",
       settings: "Settings",
-      myReport: "My Report",
+      myReport: "Download My Report",
       securityControls: "SECURITY CONTROLS ENABLED",
       systemStatus: "SYSTEM STATUS: 12MS",
       support: "SUPPORT",
@@ -162,7 +162,7 @@ const ANALYTICS_I18N = {
       family: "परिवार संवाद",
       laboratory: "प्रयोगशाला",
       settings: "सेटिंग्स",
-      myReport: "मेरी रिपोर्ट",
+      myReport: "मेरी रिपोर्ट डाउनलोड करें",
       securityControls: "सुरक्षा नियंत्रण सक्षम",
       systemStatus: "सिस्टम स्थिति: 12एमएस",
       support: "सहायता",
@@ -252,7 +252,7 @@ const ANALYTICS_I18N = {
       family: "कुटुंब संवाद",
       laboratory: "प्रयोगशाळा",
       settings: "सेटिंग्स",
-      myReport: "माझा अहवाल",
+      myReport: "माझा अहवाल डाउनलोड करा",
       securityControls: "सुरक्षा नियंत्रण सक्षम",
       systemStatus: "सिस्टम स्थिती: 12एमएस",
       support: "सपोर्ट",
@@ -1027,7 +1027,7 @@ function TopBar({ role, authUser, localizedNav }) {
   );
 }
 
-function SideBar({ onLogout, authUser, role, localizedNav }) {
+function SideBar({ onLogout, authUser, role, localizedNav, onPrimaryAction }) {
   const location = useLocation();
 
   const navItems = {
@@ -1073,10 +1073,17 @@ function SideBar({ onLogout, authUser, role, localizedNav }) {
         </div>
       </div>
 
-      <Link to={action.to} className="st-primary-btn wide">
-        <span className="material-symbols-outlined">add</span>
-        {action.label}
-      </Link>
+      {onPrimaryAction ? (
+        <button type="button" onClick={onPrimaryAction} className="st-primary-btn wide" style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', width: '100%' }}>
+          <span className="material-symbols-outlined">{role === "patient" ? "download" : "add"}</span>
+          {action.label}
+        </button>
+      ) : (
+        <Link to={action.to} className="st-primary-btn wide">
+          <span className="material-symbols-outlined">{role === "patient" ? "download" : "add"}</span>
+          {action.label}
+        </Link>
+      )}
 
       <nav className="st-side-nav">
         {items.map((item) => (
@@ -1101,11 +1108,11 @@ function SideBar({ onLogout, authUser, role, localizedNav }) {
   );
 }
 
-function Shell({ role, onLogout, authUser, children, localizedNav }) {
+function Shell({ role, onLogout, authUser, children, localizedNav, onPrimaryAction }) {
   return (
     <div className="st-app">
       <TopBar role={role} authUser={authUser} localizedNav={localizedNav} />
-      <SideBar onLogout={onLogout} authUser={authUser} role={role} localizedNav={localizedNav} />
+      <SideBar onLogout={onLogout} authUser={authUser} role={role} localizedNav={localizedNav} onPrimaryAction={onPrimaryAction} />
       <main className="st-main">{children}</main>
       <footer className="st-footer">
         <span>{localizedNav?.securityControls || "SECURITY CONTROLS ENABLED"}</span>
@@ -1491,11 +1498,6 @@ function FamilyCommunicationView({ report, patientName, labels }) {
         <article className="final-card">
           <h4>{ui.english}</h4>
           <p>{family.english || ui.familyUnavailable}</p>
-        </article>
-
-        <article className="final-card">
-          <h4>{family.regional_language_name}</h4>
-          <p>{family.regional_language || ui.regionalUnavailable}</p>
         </article>
       </div>
 
@@ -2305,8 +2307,35 @@ function PatientPortal({ onLogout, authUser }) {
   const translatedRiskAction = useTranslatedText(risk?.recommended_action || "", analyticsLanguage);
   const translatedReasoning = useTranslatedText(report?.reasoning || "", analyticsLanguage);
 
+  const exportReport = async () => {
+    if (!report) {
+      window.alert(analyticsUi.reportFetchWarning || "No report available to export");
+      return;
+    }
+    try {
+      const patient = patients.find((p) => p.patient_id === selected);
+      const html = buildClinicalReportHtml(report, patient?.name);
+      
+      const element = document.createElement("div");
+      element.innerHTML = html;
+      
+      const opt = {
+        margin:       0.5,
+        filename:     `clinical-report-${report.patient_id || "patient"}-v${report.report_version || 1}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+      
+      await html2pdf().set(opt).from(element).save();
+    } catch (err) {
+      console.error(err);
+      window.alert("Error generating PDF: " + err.message);
+    }
+  };
+
   return (
-    <Shell role="patient" onLogout={onLogout} authUser={authUser} localizedNav={navUi}>
+    <Shell role="patient" onLogout={onLogout} authUser={authUser} localizedNav={navUi} onPrimaryAction={exportReport}>
       <div className="st-page-header">
         <div>
           <p className="eyebrow">{patientHeaderEyebrow}</p>
