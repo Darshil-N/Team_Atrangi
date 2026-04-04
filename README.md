@@ -178,7 +178,7 @@ Three-layer protection:
 | Frontend | React, Vite, Recharts, html2pdf |
 | API | FastAPI, Uvicorn |
 | Local Model Runtime | Ollama (`phi3:mini`) |
-| Cloud Synthesis | Gemini 1.5 Flash |
+| Cloud Synthesis | Gemini 2.5 Flash |
 | Vector Retrieval | ChromaDB + sentence-transformer embeddings |
 | Database | Supabase PostgreSQL |
 | Data Processing | Pandas, NumPy, PDF parsers |
