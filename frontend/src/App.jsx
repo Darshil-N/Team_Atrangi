@@ -320,6 +320,213 @@ function useAnalyticsLanguage() {
   return [analyticsLanguage, setAnalyticsLanguage];
 }
 
+const TRANSLATION_CACHE = new Map();
+const TRANSLATION_CHUNK_SIZE = 320;
+
+function normalizeLanguageCode(language) {
+  const code = String(language || "en").toLowerCase();
+  if (code === "hi" || code === "mr" || code === "en") {
+    return code;
+  }
+  return "en";
+}
+
+function splitTranslationChunks(text, maxLen = TRANSLATION_CHUNK_SIZE) {
+  const cleaned = String(text || "").trim();
+  if (!cleaned) {
+    return [];
+  }
+
+  if (cleaned.length <= maxLen) {
+    return [cleaned];
+  }
+
+  const fragments = cleaned.split(/([.!?]+\s*)/);
+  const chunks = [];
+  let current = "";
+
+  for (let i = 0; i < fragments.length; i += 1) {
+    const part = fragments[i] || "";
+    if (!part) {
+      continue;
+    }
+
+    if ((current + part).length <= maxLen) {
+      current += part;
+      continue;
+    }
+
+    if (current.trim()) {
+      chunks.push(current.trim());
+    }
+
+    if (part.length <= maxLen) {
+      current = part;
+      continue;
+    }
+
+    for (let j = 0; j < part.length; j += maxLen) {
+      const slice = part.slice(j, j + maxLen).trim();
+      if (slice) {
+        chunks.push(slice);
+      }
+    }
+    current = "";
+  }
+
+  if (current.trim()) {
+    chunks.push(current.trim());
+  }
+
+  return chunks;
+}
+
+function maskMedicalTerms(text) {
+  const glossary = [
+    /\bSpO2\b/gi,
+    /\bFiO2\b/gi,
+    /\bPaO2\b/gi,
+    /\bWBC\b/gi,
+    /\bCRP\b/gi,
+    /\bICU\b/gi,
+    /\bMAP\b/gi,
+    /\bSOFA\b/gi,
+    /\bqSOFA\b/gi,
+    /\bLactate\b/gi,
+    /\bProcalcitonin\b/gi,
+    /\bSepsis\b/gi,
+  ];
+
+  let masked = String(text || "");
+  const tokens = [];
+
+  glossary.forEach((pattern) => {
+    masked = masked.replace(pattern, (match) => {
+      const token = `__MED_${tokens.length}__`;
+      tokens.push(match);
+      return token;
+    });
+  });
+
+  return { masked, tokens };
+}
+
+function unmaskMedicalTerms(text, tokens) {
+  let value = String(text || "");
+  (tokens || []).forEach((tokenValue, index) => {
+    value = value.replaceAll(`__MED_${index}__`, tokenValue);
+  });
+  return value;
+}
+
+async function translateChunkFree(text, targetLanguage) {
+  const q = encodeURIComponent(text);
+  const langpair = encodeURIComponent(`en|${targetLanguage}`);
+  const url = `https://api.mymemory.translated.net/get?q=${q}&langpair=${langpair}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(`translation_http_${response.status}`);
+  }
+
+  const payload = await response.json();
+  const translated = String(payload?.responseData?.translatedText || "").trim();
+  if (!translated) {
+    throw new Error("translation_empty_response");
+  }
+  return translated;
+}
+
+async function translateLongTextFree(text, targetLanguage) {
+  const target = normalizeLanguageCode(targetLanguage);
+  const source = String(text || "").trim();
+  if (!source || target === "en") {
+    return source;
+  }
+
+  const { masked, tokens } = maskMedicalTerms(source);
+  const chunks = splitTranslationChunks(masked);
+  if (!chunks.length) {
+    return source;
+  }
+
+  const translatedChunks = [];
+  for (const chunk of chunks) {
+    const cacheKey = `${target}:${chunk}`;
+    if (TRANSLATION_CACHE.has(cacheKey)) {
+      translatedChunks.push(TRANSLATION_CACHE.get(cacheKey));
+      continue;
+    }
+
+    const translatedChunk = await translateChunkFree(chunk, target);
+    TRANSLATION_CACHE.set(cacheKey, translatedChunk);
+    translatedChunks.push(translatedChunk);
+  }
+
+  const merged = translatedChunks.join(" ").replace(/\s+/g, " ").trim();
+  return unmaskMedicalTerms(merged, tokens);
+}
+
+function useTranslatedText(sourceText, targetLanguage) {
+  const [translatedText, setTranslatedText] = useState(String(sourceText || ""));
+
+  useEffect(() => {
+    let cancelled = false;
+    const source = String(sourceText || "").trim();
+    const target = normalizeLanguageCode(targetLanguage);
+
+    if (!source) {
+      setTranslatedText("");
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (target === "en") {
+      setTranslatedText(source);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const fullCacheKey = `${target}:${source}`;
+    if (TRANSLATION_CACHE.has(fullCacheKey)) {
+      setTranslatedText(TRANSLATION_CACHE.get(fullCacheKey));
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    // Keep source visible while translation loads so UI never shows an empty gap.
+    setTranslatedText(source);
+
+    (async () => {
+      try {
+        const translated = await translateLongTextFree(source, target);
+        const finalText = translated || source;
+        TRANSLATION_CACHE.set(fullCacheKey, finalText);
+        if (!cancelled) {
+          setTranslatedText(finalText);
+        }
+      } catch {
+        if (!cancelled) {
+          setTranslatedText(source);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceText, targetLanguage]);
+
+  return translatedText;
+}
+
 function getPublicBaseUrl() {
   const fromEnv = String(import.meta.env.VITE_PUBLIC_APP_URL || "").trim();
   if (fromEnv) {
@@ -2094,6 +2301,9 @@ function PatientPortal({ onLogout, authUser }) {
   const navUi = analyticsUi.patientNav;
   const patientHeaderEyebrow = analyticsUi.patientHeader.eyebrow;
   const patientHeaderTitle = analyticsUi.patientHeader.title;
+  const translatedRiskTitle = useTranslatedText(risk?.risk || "", analyticsLanguage);
+  const translatedRiskAction = useTranslatedText(risk?.recommended_action || "", analyticsLanguage);
+  const translatedReasoning = useTranslatedText(report?.reasoning || "", analyticsLanguage);
 
   return (
     <Shell role="patient" onLogout={onLogout} authUser={authUser} localizedNav={navUi}>
@@ -2160,8 +2370,8 @@ function PatientPortal({ onLogout, authUser }) {
 
           <section className="insight-card">
             <p className="tag">{patientUi.clinicalInsight}</p>
-            <h3>{risk?.risk || patientUi.noCriticalRisk}</h3>
-            <p>{risk?.recommended_action || patientUi.awaitingRecommendation}</p>
+            <h3>{translatedRiskTitle || patientUi.noCriticalRisk}</h3>
+            <p>{translatedRiskAction || patientUi.awaitingRecommendation}</p>
           </section>
         </div>
       </div> : null}
@@ -2242,14 +2452,14 @@ function PatientPortal({ onLogout, authUser }) {
             </div>
           </div>
           <h4 className="summary-head">{patientUi.doctorSummary}</h4>
-          <p className="summary-text">{report?.reasoning || patientUi.noDoctorSummary}</p>
+          <p className="summary-text">{translatedReasoning || patientUi.noDoctorSummary}</p>
         </section>
       </div> : null}
 
       {isDiagnosticsPage ? (
         <section className="st-card">
           <h3>{patientUi.doctorSummary}</h3>
-          <p className="summary-text">{report?.reasoning || patientUi.noDoctorSummary}</p>
+          <p className="summary-text">{translatedReasoning || patientUi.noDoctorSummary}</p>
         </section>
       ) : null}
     </Shell>
